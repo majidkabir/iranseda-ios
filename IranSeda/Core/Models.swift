@@ -63,11 +63,16 @@ struct Hub: Decodable, Identifiable {
 }
 
 struct HubTab: Decodable, Identifiable {
-    @Lossy var ID: String
+    @Lossy var tabID: String
     @Lossy var Title: String
     @Lossy var FeedAddress: String
     @Lossy var TabEnabled: String
-    var id: String { ID + FeedAddress }
+    var id: String { tabID + FeedAddress }
+
+    enum CodingKeys: String, CodingKey {
+        case tabID = "ID"
+        case Title, FeedAddress, TabEnabled
+    }
 }
 
 // MARK: - Feed page: containers of boxes (used by every hub tab and list)

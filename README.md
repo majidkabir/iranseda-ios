@@ -46,4 +46,4 @@ Quirks handled in `Core/API.swift` and `Core/Models.swift`:
 ## Not done
 
 - Search, paging of long lists (only the first page loads), comments, likes, login, CarPlay.
-- The code has not been compiled yet; it was written without Xcode.
+- It builds in CI for the iOS Simulator, but has not been run on a device yet.

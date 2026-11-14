@@ -45,14 +45,14 @@ final class Player: ObservableObject {
 
     // MARK: Playback
 
-    func play(_ detail: PlayerDetail, at start: Int = 0) {
-        guard detail.items.indices.contains(start) else { return }
+    func play(_ detail: PlayerDetail, at first: Int = 0) {
+        guard detail.items.indices.contains(first) else { return }
         saveResume()
         position = 0
         album = detail
         artwork = nil
         loadArtwork(detail.cover)
-        start(index: start)
+        start(index: first)
     }
 
     private func start(index newIndex: Int) {
