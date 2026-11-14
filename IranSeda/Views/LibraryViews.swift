@@ -96,7 +96,11 @@ struct LibraryView: View {
                         for item in offsets.map({ downloads.items[$0] }) { downloads.delete(item) }
                     }
                 } footer: {
-                    Text("\(downloads.items.count) فایل · \(Format.bytes(downloads.totalBytes))")
+                    Text(Format.fa(downloads.items.count) + " فایل · " + Format.bytes(downloads.totalBytes))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 8)
                 }
             }
             .listStyle(.plain)
@@ -178,7 +182,7 @@ struct SettingsView: View {
             }
 
             Section("درباره") {
-                LabeledContent("نسخه", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "-")
+                LabeledContent("نسخه", value: Format.fa(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "-"))
                 Link(destination: URL(string: "https://github.com/majidkabir/iranseda-ios")!) {
                     Label("کد برنامه در گیت‌هاب", systemImage: "chevron.left.forwardslash.chevron.right")
                 }

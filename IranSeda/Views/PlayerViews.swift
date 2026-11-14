@@ -39,7 +39,7 @@ struct MiniPlayer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(player.isPlaying ? "توقف" : "پخش")
             }
-            .padding(.horizontal, Theme.gutter)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
             if !player.isLive {
@@ -47,13 +47,17 @@ struct MiniPlayer: View {
                     Rectangle().fill(Color.accentColor)
                         .frame(width: geo.size.width * player.progress)
                 }
-                .frame(height: 2)
+                .frame(height: 3)
                 .environment(\.layoutDirection, .leftToRight)
                 .accessibilityHidden(true)
             }
         }
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.quaternary))
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 6)
     }
 }
 
@@ -137,7 +141,7 @@ struct NowPlayingView: View {
                 HStack {
                     Text(Format.clock(dragValue ?? player.position))
                     Spacer()
-                    Text("-" + Format.clock(max(player.duration - (dragValue ?? player.position), 0)))
+                    Text("−" + Format.clock(max(player.duration - (dragValue ?? player.position), 0)))
                 }
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
@@ -149,8 +153,10 @@ struct NowPlayingView: View {
 
     private var transport: some View {
         HStack(spacing: 0) {
-            control("backward.end.fill", label: "قبلی", size: .title2, enabled: player.hasPrevious) { player.previous() }
-            control("gobackward.15", label: "۱۵ ثانیه عقب", size: .title, enabled: !player.isLive) { player.skip(-15) }
+            if !player.isLive {
+                control("backward.end.fill", label: "قبلی", size: .title2, enabled: player.hasPrevious) { player.previous() }
+                control("gobackward.15", label: "۱۵ ثانیه عقب", size: .title, enabled: true) { player.skip(-15) }
+            }
             Button {
                 Haptics.tap()
                 player.toggle()
@@ -161,8 +167,10 @@ struct NowPlayingView: View {
                     .frame(maxWidth: .infinity)
             }
             .accessibilityLabel(player.isPlaying ? "توقف" : "پخش")
-            control("goforward.15", label: "۱۵ ثانیه جلو", size: .title, enabled: !player.isLive) { player.skip(15) }
-            control("forward.end.fill", label: "بعدی", size: .title2, enabled: player.hasNext) { player.next() }
+            if !player.isLive {
+                control("goforward.15", label: "۱۵ ثانیه جلو", size: .title, enabled: true) { player.skip(15) }
+                control("forward.end.fill", label: "بعدی", size: .title2, enabled: player.hasNext) { player.next() }
+            }
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
@@ -186,6 +194,7 @@ struct NowPlayingView: View {
 
     private var options: some View {
         HStack(spacing: 0) {
+            if !player.isLive {
             Menu {
                 Picker("سرعت پخش", selection: Binding(get: { player.rate }, set: { player.setRate($0) })) {
                     ForEach(Player.speeds, id: \.self) { speed in
@@ -195,12 +204,11 @@ struct NowPlayingView: View {
             } label: {
                 option(text: Self.speedLabel(player.rate), caption: "سرعت")
             }
-            .disabled(player.isLive)
-            .opacity(player.isLive ? 0.3 : 1)
+            }
 
             Menu {
                 ForEach(sleepOptions, id: \.self) { minutes in
-                    Button("\(minutes) دقیقه") { player.sleep(afterMinutes: minutes) }
+                    Button(Format.fa(minutes) + " دقیقه") { player.sleep(afterMinutes: minutes) }
                 }
                 if player.sleepAt != nil {
                     Button("خاموش کردن زمان‌سنج", role: .destructive) { player.sleep(afterMinutes: nil) }
@@ -217,11 +225,11 @@ struct NowPlayingView: View {
             .frame(maxWidth: .infinity, minHeight: 52)
             .accessibilityLabel("انتخاب خروجی صدا")
 
-            Button { showQueue = true } label: {
-                option(symbol: "list.bullet", caption: "فهرست")
+            if (player.album?.items.count ?? 0) > 1 {
+                Button { showQueue = true } label: {
+                    option(symbol: "list.bullet", caption: "فهرست")
+                }
             }
-            .disabled((player.album?.items.count ?? 0) < 2)
-            .opacity((player.album?.items.count ?? 0) < 2 ? 0.3 : 1)
         }
         .buttonStyle(.plain)
     }
@@ -244,7 +252,7 @@ struct NowPlayingView: View {
 
     static func speedLabel(_ speed: Float) -> String {
         let text = speed == speed.rounded() ? String(format: "%.0f", speed) : String(format: "%g", speed)
-        return text + "×"
+        return Format.fa(text) + "×"
     }
 }
 

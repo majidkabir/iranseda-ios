@@ -6,6 +6,7 @@ struct DetailView: View {
     @EnvironmentObject private var player: Player
     @EnvironmentObject private var downloads: DownloadStore
     @State private var expanded = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         Loader(load: { try await API.get(PlayerDetail.self, url) }) { detail in
@@ -25,7 +26,8 @@ struct DetailView: View {
                                 Text(byline).font(.subheadline).foregroundStyle(.secondary)
                             }
                         }
-                        HStack(spacing: 10) {
+                        let row = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+                        row {
                             Button {
                                 Haptics.tap()
                                 player.play(detail, source: saved)
@@ -68,7 +70,7 @@ struct DetailView: View {
                     }
                 }
 
-                Section("\(detail.items.count) فایل") {
+                Section(Format.fa(detail.items.count) + " فایل") {
                     ForEach(Array(detail.items.enumerated()), id: \.offset) { index, track in
                         TrackRow(detail: detail, index: index, track: track, source: saved)
                     }
@@ -170,7 +172,7 @@ private struct TrackRow: View {
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("لغو دانلود")
-            .accessibilityValue("\(Int(fraction * 100)) درصد")
+            .accessibilityValue(Format.fa(Int(fraction * 100)) + " درصد")
         } else if downloads.canDownload(track) {
             Button {
                 Haptics.tap()

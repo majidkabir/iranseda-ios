@@ -16,8 +16,8 @@ enum Theme {
 
     /// A stable gradient per title, used when an item has no picture.
     static func gradient(for text: String) -> LinearGradient {
-        let sum = text.unicodeScalars.reduce(0) { ($0 &+ Int($1.value)) % 9973 }
-        let pair = palette[sum % palette.count]
+        let hash = text.unicodeScalars.reduce(UInt32(2166136261)) { ($0 ^ $1.value) &* 16777619 }
+        let pair = palette[Int((hash >> 8) % UInt32(palette.count))]
         return LinearGradient(colors: [pair.0, pair.1], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 }
