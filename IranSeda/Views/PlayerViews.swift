@@ -39,7 +39,7 @@ struct MiniPlayer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(player.isPlaying ? "توقف" : "پخش")
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Theme.gutter)
             .padding(.vertical, 8)
 
             if !player.isLive {
@@ -52,12 +52,8 @@ struct MiniPlayer: View {
                 .accessibilityHidden(true)
             }
         }
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.quaternary))
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 6)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 
