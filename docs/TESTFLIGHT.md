@@ -1,5 +1,8 @@
 # Install Seda+ on your iPhone with TestFlight
 
+This guide uses the maintainer's identifiers. In your own fork, replace `com.majidkabir.iranseda` with your
+own bundle identifier in `project.yml`, in `.github/workflows/screenshots.yml` and below, and use your own repository URL.
+
 GitHub builds and signs the app, uploads it to Apple, and your iPhone installs it from the TestFlight app.
 This is the same setup as [aula-plus](https://github.com/majidkabir/aula-plus/blob/main/TESTFLIGHT.md), without the widget and App Group.
 
