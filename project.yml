@@ -1,0 +1,29 @@
+name: IranSeda
+options:
+  bundleIdPrefix: dk.majid
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  IranSeda:
+    type: application
+    platform: iOS
+    sources: [IranSeda]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dk.majid.iranseda
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: IranSeda/Info.plist
+      properties:
+        CFBundleDisplayName: ایران‌صدا
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
