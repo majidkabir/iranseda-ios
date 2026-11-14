@@ -14,6 +14,8 @@ open IranSeda.xcodeproj
 In Xcode: select the IranSeda target, set your Team under Signing & Capabilities,
 pick your iPhone, Run. Needs iOS 17+.
 
+Or skip Xcode: GitHub builds, signs and uploads to TestFlight. See [TESTFLIGHT.md](TESTFLIGHT.md).
+
 ## What it does
 
 - Live radio: every national and provincial station (HLS).
