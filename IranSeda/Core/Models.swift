@@ -192,6 +192,7 @@ struct Channel: Decodable, Identifiable {
     @Lossy var logo: String
     @Lossy var name: String         // programme on air now
     @LossyList var tabs: [LinkTab]  // 1 live, 2 schedule, 3 programmes, 4 time archive
+    var liveTab: LinkTab? { tabs.first { $0.type == "1" && !$0.feedAddress.isEmpty } }
 }
 
 struct LiveInfo: Decodable {
@@ -254,16 +255,33 @@ struct ArchivedProgram: Decodable {
 
 enum Format {
     /// "12590000" (ms) -> "3:29:50"
+    /// Western digits to Persian ones, so numbers match the rest of the text.
+    static func fa(_ text: String) -> String {
+        String(text.map { ch -> Character in
+            guard let d = ch.wholeNumberValue, ch.isASCII, let scalar = Unicode.Scalar(0x06F0 + UInt32(d)) else { return ch }
+            return Character(scalar)
+        })
+    }
+
+    static func fa(_ number: Int) -> String { fa(String(number)) }
+
     static func duration(ms: String) -> String {
         guard let v = Double(ms), v > 0 else { return "" }
         return clock(v / 1000)
     }
 
     static func clock(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "--:--" }
+        guard seconds.isFinite, seconds >= 0 else { return "–" }
         let t = Int(seconds)
         let h = t / 3600, m = (t % 3600) / 60, s = t % 60
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+        return fa(h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s))
+    }
+
+    static func bytes(_ count: Int64) -> String {
+        let mb = Double(count) / 1_000_000
+        if mb >= 1000 { return fa(String(format: "%.1f", mb / 1000)).replacingOccurrences(of: ".", with: "٫") + " گیگابایت" }
+        if mb >= 10 { return fa(String(format: "%.0f", mb)) + " مگابایت" }
+        return fa(String(format: "%.1f", mb)).replacingOccurrences(of: ".", with: "٫") + " مگابایت"
     }
 
     static func time(epochMs: String) -> String {
@@ -271,6 +289,6 @@ enum Format {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         f.timeZone = TimeZone(identifier: "Asia/Tehran")
-        return f.string(from: Date(timeIntervalSince1970: v / 1000))
+        return fa(f.string(from: Date(timeIntervalSince1970: v / 1000)))
     }
 }

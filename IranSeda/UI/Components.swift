@@ -1,0 +1,221 @@
+import AVKit
+import SwiftUI
+
+enum Theme {
+    static let corner: CGFloat = 14
+    static let gutter: CGFloat = 16
+
+    private static let palette: [(Color, Color)] = [
+        (Color(red: 0.05, green: 0.58, blue: 0.42), Color(red: 0.02, green: 0.31, blue: 0.32)),
+        (Color(red: 0.20, green: 0.45, blue: 0.85), Color(red: 0.10, green: 0.22, blue: 0.52)),
+        (Color(red: 0.85, green: 0.45, blue: 0.20), Color(red: 0.55, green: 0.20, blue: 0.15)),
+        (Color(red: 0.60, green: 0.35, blue: 0.80), Color(red: 0.30, green: 0.15, blue: 0.50)),
+        (Color(red: 0.85, green: 0.30, blue: 0.45), Color(red: 0.50, green: 0.12, blue: 0.30)),
+        (Color(red: 0.25, green: 0.62, blue: 0.70), Color(red: 0.08, green: 0.30, blue: 0.42)),
+    ]
+
+    /// A stable gradient per title, used when an item has no picture.
+    static func gradient(for text: String) -> LinearGradient {
+        let hash = text.unicodeScalars.reduce(UInt32(2166136261)) { ($0 ^ $1.value) &* 16777619 }
+        let pair = palette[Int((hash >> 8) % UInt32(palette.count))]
+        return LinearGradient(colors: [pair.0, pair.1], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+enum Haptics {
+    static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+    static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+}
+
+/// A picture from the server, with a titled gradient tile while loading or when missing.
+struct Artwork: View {
+    let link: String
+    var title: String = ""
+    var symbol: String = "waveform"
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Theme.gradient(for: title)
+                Image(systemName: symbol)
+                    .font(.system(size: max(12, min(geo.size.width, geo.size.height) * 0.36), weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                if !Demo.isOn, let url = API.resolve(link) {
+                    AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        }
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Loads a value once and shows a spinner, an error with retry, or the content.
+/// Pull to refresh reloads it.
+struct Loader<T, Content: View>: View {
+    private let load: () async throws -> T
+    private let content: (T) -> Content
+    @State private var value: T?
+    @State private var failure: String?
+
+    init(load: @escaping () async throws -> T, @ViewBuilder content: @escaping (T) -> Content) {
+        self.load = load
+        self.content = content
+    }
+
+    var body: some View {
+        Group {
+            if let value {
+                content(value)
+            } else if let failure {
+                ContentUnavailableView {
+                    Label("بارگیری نشد", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(failure)
+                } actions: {
+                    Button("تلاش دوباره") { Task { await run() } }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("در حال بارگیری")
+            }
+        }
+        .task { if value == nil { await run() } }
+        .refreshable { await run() }
+    }
+
+    private func run() async {
+        failure = nil
+        do { value = try await load() } catch is CancellationError {
+        } catch { if value == nil { failure = error.localizedDescription } }
+    }
+}
+
+/// A button that runs async work, shows a spinner meanwhile and an alert on failure.
+struct AsyncButton<Label: View>: View {
+    private let action: () async throws -> Void
+    private let label: Label
+    @State private var busy = false
+    @State private var failure: String?
+
+    init(action: @escaping () async throws -> Void, @ViewBuilder label: () -> Label) {
+        self.action = action
+        self.label = label()
+    }
+
+    var body: some View {
+        Button {
+            guard !busy else { return }
+            Haptics.tap()
+            busy = true
+            Task {
+                do { try await action() } catch { failure = error.localizedDescription }
+                busy = false
+            }
+        } label: {
+            label.opacity(busy ? 0.4 : 1).overlay { if busy { ProgressView() } }
+        }
+        .alert("پخش نشد", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button("باشه", role: .cancel) {}
+        } message: {
+            Text(failure ?? "")
+        }
+    }
+}
+
+struct SectionHeader<Destination: View>: View {
+    let title: String
+    var more: String = ""
+    @ViewBuilder var destination: () -> Destination
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.title3.bold())
+            Spacer()
+            if !more.isEmpty {
+                NavigationLink(destination: destination) {
+                    HStack(spacing: 2) {
+                        Text(more)
+                        Image(systemName: "chevron.forward").font(.caption.bold())
+                    }
+                    .font(.subheadline)
+                }
+            }
+        }
+        .padding(.horizontal, Theme.gutter)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+extension SectionHeader where Destination == EmptyView {
+    init(title: String) {
+        self.init(title: title, more: "", destination: { EmptyView() })
+    }
+}
+
+/// The system AirPlay / output picker.
+struct RoutePicker: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let view = AVRoutePickerView()
+        view.prioritizesVideoDevices = false
+        view.tintColor = .label
+        view.activeTintColor = UIColor(named: "AccentColor")
+        return view
+    }
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+}
+
+/// Opens whatever a saved item points at.
+struct SavedItemDestination: View {
+    let item: SavedItem
+
+    var body: some View {
+        switch item.kind {
+        case .detail, .play: DetailView(url: item.url)
+        case .home: HomeInfoView(url: item.url, title: item.title)
+        case .channel: ChannelLoader(id: item.ref)
+        }
+    }
+}
+
+/// Where a link leads, by the server's URL type.
+/// 9 = playable item, 7 = serial or programme home, anything else = another list.
+struct LinkDestination: View {
+    let urlType: String
+    let url: String
+    let title: String
+
+    var body: some View {
+        switch urlType {
+        case "9": DetailView(url: url)
+        case "7": HomeInfoView(url: url, title: title)
+        default: FeedScreen(url: url, title: title)
+        }
+    }
+}
+
+struct FavoriteButton: View {
+    let item: SavedItem
+    @EnvironmentObject private var library: Library
+
+    var body: some View {
+        let on = library.isFavorite(item)
+        Button {
+            Haptics.tap()
+            withAnimation(.snappy) { library.toggleFavorite(item) }
+        } label: {
+            Image(systemName: on ? "heart.fill" : "heart")
+                .foregroundStyle(on ? Color.red : Color.accentColor)
+                .symbolEffect(.bounce, value: on)
+        }
+        .accessibilityLabel(on ? "حذف از علاقه‌مندی‌ها" : "افزودن به علاقه‌مندی‌ها")
+    }
+}
