@@ -192,6 +192,7 @@ struct Channel: Decodable, Identifiable {
     @Lossy var logo: String
     @Lossy var name: String         // programme on air now
     @LossyList var tabs: [LinkTab]  // 1 live, 2 schedule, 3 programmes, 4 time archive
+    var liveTab: LinkTab? { tabs.first { $0.type == "1" && !$0.feedAddress.isEmpty } }
 }
 
 struct LiveInfo: Decodable {
@@ -264,6 +265,10 @@ enum Format {
         let t = Int(seconds)
         let h = t / 3600, m = (t % 3600) / 60, s = t % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+    }
+
+    static func bytes(_ count: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
     static func time(epochMs: String) -> String {

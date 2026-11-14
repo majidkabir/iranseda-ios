@@ -6,6 +6,7 @@ import Foundation
 enum API {
     static let base = "https://apisec.iranseda.ir"
     static let initPath = "/initv8/?VALID=TRUE"
+    static let radioPath = "/radio/"
 
     enum Failure: LocalizedError {
         case badURL(String)
@@ -14,9 +15,9 @@ enum API {
 
         var errorDescription: String? {
             switch self {
-            case .badURL(let s): return "Bad URL: \(s)"
-            case .http(let code): return "Server answered \(code)"
-            case .empty: return "Empty response"
+            case .badURL: return "نشانی نامعتبر است"
+            case .http(let code): return "سرور پاسخ \(code) داد"
+            case .empty: return "پاسخی دریافت نشد"
             }
         }
     }
@@ -49,6 +50,9 @@ enum API {
     }
 
     static func get<T: Decodable>(_ type: T.Type, _ link: String) async throws -> T {
+        if Demo.isOn {
+            return try JSONDecoder().decode(T.self, from: sanitize(Demo.data(for: link)))
+        }
         guard let url = resolve(link) else { throw Failure.badURL(link) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
