@@ -87,8 +87,8 @@ final class DownloadStore: ObservableObject {
             var failure: String?
             var size: Int64?
             if let error {
-                failure = (error as NSError).code == NSURLErrorCancelled ? nil : error.localizedDescription
-                if (error as NSError).code == NSURLErrorCancelled { failure = "" }
+                // An empty message marks a download the user cancelled.
+                failure = (error as NSError).code == NSURLErrorCancelled ? "" : error.localizedDescription
             } else if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 failure = "سرور پاسخ \(http.statusCode) داد"
             } else if let temp {

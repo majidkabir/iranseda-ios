@@ -25,11 +25,25 @@ The app loads one entry point and then only follows links found in responses. It
 - Fields are strings, sometimes numbers, often missing. All decoding is lenient (`Lossy`, `LossyList` in `Models.swift`).
 - Some streams, downloads and images are plain HTTP, so App Transport Security is opened up in `project.yml`.
 
+## Paging
+
+A feed whose response says `"Infinity": "true"` has more pages. The next page is the same link with
+`pn=2`, then `pn=3`, and so on (`PageNo` in the response confirms the page). A page that only repeats
+earlier items means the list has ended.
+
+## Radio programmes
+
+A programme home (`/radio/ProgramHome/`) has tabs. Type 7 is what is on air now, type 1 is past episodes:
+`{"episodes": [{day, month, year, description1, duration (seconds), PlayURL}]}`. `PlayURL` returns a normal
+player detail whose `items[]` are the half-hour parts of that broadcast, each downloadable.
+
 ## Unknown
 
-- How long lists are paged (`Infinity`, `PageNo`, `ItemPerPage` appear in responses).
-- The parameters of the search endpoint.
-- Response formats of a radio programme's episode list and of archive playback are assumed, not verified.
+- The search call. The Android app receives a search link from the server (`SearchURL`), but where that
+  comes from is not known. The app therefore searches on the device: all stations, plus the front shelves
+  of every hub.
+- Playing from a time in the archive (`PlayUrlByTime`) is assumed to return a player detail; not verified.
+- Comments, likes, contests and programme staff lists are not used.
 
 ## Being a good client
 
