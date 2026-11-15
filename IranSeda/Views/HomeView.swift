@@ -190,7 +190,9 @@ struct HubView: View {
             if tabs.count > 1 {
                 ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    // Lazy, like the shelves: a plain HStack wider than the screen opens at the wrong
+                    // end (or blank) in a right-to-left layout.
+                    LazyHStack(spacing: 8) {
                         ForEach(tabs) { tab in
                             let on = tab.id == current?.id
                             Button {
@@ -211,10 +213,8 @@ struct HubView: View {
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
-                    .padding(.vertical, 8)
+                    .frame(height: 52)
                 }
-                // A long right-to-left row can open scrolled to its far end; start at the selected tab.
-                .onAppear { if let id = current?.id { proxy.scrollTo(id, anchor: .center) } }
                 }
                 .background(.bar)
                 Divider()
