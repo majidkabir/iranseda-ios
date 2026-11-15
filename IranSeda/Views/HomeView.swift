@@ -218,8 +218,9 @@ struct HubView: View {
 struct FeedScreen: View {
     let url: String
     let title: String
+    var asList = false
     var body: some View {
-        FeedView(url: url)
+        FeedView(url: url, asList: asList)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
     }
@@ -228,10 +229,12 @@ struct FeedScreen: View {
 /// A server feed: titled containers, each a horizontal shelf or a vertical list of boxes.
 struct FeedView: View {
     let url: String
+    /// Show every container as a vertical list (search results), whatever the server says.
+    var asList = false
 
     var body: some View {
         Loader(load: { try await API.get(FeedPage.self, url) }) { page in
-            FeedContent(url: url, first: page).id(page.ServerTime)
+            FeedContent(url: url, first: page, asList: asList).id(page.ServerTime)
         }
     }
 }
@@ -239,16 +242,18 @@ struct FeedView: View {
 /// The containers of a feed, loading further pages (`pn=2`, `pn=3`, ...) as the end comes into view.
 private struct FeedContent: View {
     let url: String
+    let asList: Bool
     @State private var containers: [FeedContainer]
     @State private var page = 1
     @State private var hasMore: Bool
     @State private var seen: Set<String>
 
-    init(url: String, first: FeedPage) {
+    init(url: String, first: FeedPage, asList: Bool) {
         self.url = url
+        self.asList = asList
         let shown = first.Containers.filter { !$0.boxes.isEmpty }
         _containers = State(initialValue: shown)
-        _hasMore = State(initialValue: first.Infinity.lowercased() == "true" && !shown.isEmpty)
+        _hasMore = State(initialValue: first.hasMore && !shown.isEmpty)
         _seen = State(initialValue: Set(shown.flatMap { $0.boxes.map(\.URL) }))
     }
 
@@ -260,7 +265,7 @@ private struct FeedContent: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 28) {
                     ForEach(Array(containers.enumerated()), id: \.offset) { _, container in
-                        ContainerView(container: container)
+                        ContainerView(container: container, asList: asList)
                     }
                     if hasMore {
                         ProgressView()
@@ -298,6 +303,7 @@ private struct FeedContent: View {
 
 private struct ContainerView: View {
     let container: FeedContainer
+    var asList = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -307,7 +313,7 @@ private struct ContainerView: View {
                     FeedScreen(url: container.MoreLink, title: container.Title)
                 }
             }
-            if container.isHorizontal == "1" {
+            if container.isHorizontal == "1" && !asList {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 12) {
                         ForEach(Array(container.boxes.enumerated()), id: \.offset) { _, box in

@@ -79,9 +79,11 @@ struct HubTab: Decodable, Identifiable {
 
 struct FeedPage: Decodable {
     @Lossy var ServerTime: String
-    @Lossy var Infinity: String     // "true" when more pages exist (next page: add pn=2, pn=3, ...)
+    @Lossy var Infinity: String     // "true" or "1" when more pages exist (next page: add pn=2, pn=3, ...)
     @Lossy var PageTitle: String
     @LossyList var Containers: [FeedContainer]
+
+    var hasMore: Bool { ["true", "1"].contains(Infinity.lowercased()) }
 }
 
 struct FeedContainer: Decodable {
