@@ -186,47 +186,59 @@ struct HubView: View {
 
     var body: some View {
         let current = tabs.first { $0.id == selected } ?? tabs.first
-        VStack(spacing: 0) {
-            if tabs.count > 1 {
-                ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(tabs) { tab in
-                            let on = tab.id == current?.id
-                            Button {
-                                Haptics.tap()
-                                selected = tab.id
-                                withAnimation(.snappy) { proxy.scrollTo(tab.id, anchor: .center) }
-                            } label: {
-                                Text(tab.Title)
-                                    .font(.subheadline.weight(on ? .semibold : .regular))
-                                    .padding(.horizontal, 14)
-                                    .frame(minHeight: 36)
-                                    .background(on ? Color.accentColor : Color(.secondarySystemFill), in: Capsule())
-                                    .foregroundStyle(on ? Color.white : Color.primary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(on ? .isSelected : [])
-                            .id(tab.id)
-                        }
-                    }
-                    .padding(.horizontal, Theme.gutter)
-                    .padding(.vertical, 8)
-                }
-                // A long right-to-left row can open scrolled to its far end; start at the selected tab.
-                .onAppear { if let id = current?.id { proxy.scrollTo(id, anchor: .center) } }
-                }
-                .background(.bar)
-                Divider()
-            }
+        Group {
             if let current {
-                FeedView(url: current.FeedAddress).id(current.id)
+                // The tab row travels inside the feed's own scroll view, as its first row. A separate
+                // horizontal scroll view directly under the navigation bar came out blank on iOS 26
+                // whenever the tabs were wide enough to scroll.
+                FeedView(url: current.FeedAddress, header: tabs.count > 1 ? AnyView(tabRow(current: current)) : nil)
+                    .id(current.id)
             } else {
                 ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray")
             }
         }
         .navigationTitle(hub.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Always reachable, also while a tab is loading or failed to load.
+            if tabs.count > 1 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("بخش", selection: Binding(get: { current?.id ?? "" }, set: { selected = $0 })) {
+                            ForEach(tabs) { tab in Text(tab.Title).tag(tab.id) }
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease")
+                    }
+                    .accessibilityLabel("انتخاب بخش")
+                }
+            }
+        }
+    }
+
+    private func tabRow(current: HubTab) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                ForEach(tabs) { tab in
+                    let on = tab.id == current.id
+                    Button {
+                        Haptics.tap()
+                        selected = tab.id
+                    } label: {
+                        Text(tab.Title)
+                            .font(.subheadline.weight(on ? .semibold : .regular))
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 36)
+                            .background(on ? Color.accentColor : Color(.secondarySystemFill), in: Capsule())
+                            .foregroundStyle(on ? Color.white : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, Theme.gutter)
+        }
+        .frame(height: 40)
     }
 }
 
@@ -246,10 +258,12 @@ struct FeedView: View {
     let url: String
     /// Show every container as a vertical list (search results), whatever the server says.
     var asList = false
+    /// Shown as the first row of the scrolling content (a hub's tab row).
+    var header: AnyView?
 
     var body: some View {
         Loader(load: { try await API.get(FeedPage.self, url) }) { page in
-            FeedContent(url: url, first: page, asList: asList).id(page.ServerTime)
+            FeedContent(url: url, first: page, asList: asList, header: header).id(page.ServerTime)
         }
     }
 }
@@ -258,15 +272,17 @@ struct FeedView: View {
 private struct FeedContent: View {
     let url: String
     let asList: Bool
+    let header: AnyView?
     @State private var containers: [FeedContainer]
     @State private var page = 1
     @State private var hasMore: Bool
     @State private var loadFailed = false
     @State private var seen: Set<String>
 
-    init(url: String, first: FeedPage, asList: Bool) {
+    init(url: String, first: FeedPage, asList: Bool, header: AnyView?) {
         self.url = url
         self.asList = asList
+        self.header = header
         let shown = first.Containers.filter { !$0.boxes.isEmpty }
         _containers = State(initialValue: shown)
         _hasMore = State(initialValue: first.hasMore && !shown.isEmpty)
@@ -274,31 +290,33 @@ private struct FeedContent: View {
     }
 
     var body: some View {
-        if containers.isEmpty {
-            ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray",
-                                   description: Text("این بخش هنوز در برنامه پشتیبانی نمی‌شود یا خالی است."))
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
-                    ForEach(Array(containers.enumerated()), id: \.offset) { _, container in
-                        ContainerView(container: container, asList: asList)
-                    }
-                    if hasMore {
-                        if loadFailed {
-                            Button("بارگیری بیشتر") { loadFailed = false }
-                                .buttonStyle(.bordered)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                        } else {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .task(id: page) { await loadMore() }
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 28) {
+                if let header { header }
+                if containers.isEmpty {
+                    ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray",
+                                           description: Text("این بخش هنوز در برنامه پشتیبانی نمی‌شود یا خالی است."))
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 60)
+                }
+                ForEach(Array(containers.enumerated()), id: \.offset) { _, container in
+                    ContainerView(container: container, asList: asList)
+                }
+                if hasMore {
+                    if loadFailed {
+                        Button("بارگیری بیشتر") { loadFailed = false }
+                            .buttonStyle(.bordered)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .task(id: page) { await loadMore() }
                     }
                 }
-                .padding(.vertical, 12)
             }
+            .padding(.vertical, 12)
         }
     }
 
