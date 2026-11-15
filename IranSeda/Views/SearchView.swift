@@ -1,70 +1,76 @@
 import SwiftUI
 
-/// One thing search can find in a hub's shelves.
-struct SearchEntry: Identifiable {
-    let id: String
-    let title: String
-    let subtitle: String
-    let image: String
-    let url: String
-    let urlType: String
-    let group: String
-    let key: String
-}
-
-/// Search index built on the device.
-///
-/// The service's own search call is not known, so this searches what the app can
-/// already see: every station, plus everything on the front shelves of each hub.
+/// Search across the service: stations are matched on the device, and every hub is asked
+/// through its own search call (`<hub>/search/?t=<text>`), the same one the website uses.
 @MainActor
-final class SearchIndex: ObservableObject {
-    static let shared = SearchIndex()
+final class SearchModel: ObservableObject {
+    struct HubResult: Identifiable {
+        let id: String
+        let title: String
+        let link: String          // the hub's search link, for "show all"
+        var boxes: [FeedBox] = []
+        var hasMore = false
+        var isLoading = true
+        var failed = false
+    }
 
-    @Published private(set) var entries: [SearchEntry] = []
+    @Published private(set) var hubs: [HubResult] = []
     @Published private(set) var channels: [Channel] = []
-    @Published private(set) var isLoading = false
-    private var loaded = false
+    @Published private(set) var searched = ""
+    @Published private(set) var isSearching = false
+    private var sources: [(id: String, title: String, base: String)] = []
+    private var run: Task<Void, Never>?
 
-    func load() async {
-        guard !loaded, !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
-
+    /// Stations and the list of hubs; loaded once.
+    func prepare() async {
+        guard sources.isEmpty else { return }
         async let radio = try? API.get(RadioList.self, API.radioPath)
-        guard let config = try? await API.get(InitConfig.self, API.initPath) else {
-            channels = await radio?.channels ?? []
-            return
+        if let config = try? await API.get(InitConfig.self, API.initPath) {
+            sources = config.Base
+                .filter { $0.UrlType == "base" && !$0.UrlAddress.isEmpty }
+                .map { (id: $0.Id, title: $0.title, base: $0.UrlAddress.hasSuffix("/") ? $0.UrlAddress : $0.UrlAddress + "/") }
         }
         channels = await radio?.channels ?? []
+    }
 
-        // One request per hub: the first tab is the hub's front page.
-        let hubs: [(title: String, feed: String)] = config.Base
-            .filter { $0.UrlType == "base" }
-            .compactMap { hub in
-                let usable = hub.tabs.filter { !$0.FeedAddress.isEmpty }
-                let tab = usable.first { $0.TabEnabled == "1" } ?? usable.first
-                return tab.map { (hub.title, $0.FeedAddress) }
-            }
+    func matchingChannels(_ query: String) -> [Channel] {
+        let needle = Self.normalize(query)
+        guard !needle.isEmpty else { return [] }
+        return channels.filter { Self.normalize($0.title + " " + $0.name).contains(needle) }
+    }
 
-        var found: [SearchEntry] = []
-        var seen = Set<String>()
-        await withTaskGroup(of: (String, FeedPage?).self) { group in
+    func search(_ text: String) {
+        let query = text.trimmingCharacters(in: .whitespaces)
+        guard query != searched else { return }
+        run?.cancel()
+        searched = query
+        hubs = []
+        guard query.count >= 2 else { isSearching = false; return }
+
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&+=?#")
+        let term = query.addingPercentEncoding(withAllowedCharacters: allowed) ?? query
+        isSearching = true
+
+        run = Task {
+            await prepare()
+            if Task.isCancelled { return }
+            hubs = sources.map { HubResult(id: $0.id, title: $0.title, link: $0.base + "search/?t=" + term) }
+            // The server answers searches slowly and one at a time, so ask hub by hub.
             for hub in hubs {
-                let title = hub.title, feed = hub.feed
-                group.addTask { (title, try? await API.get(FeedPage.self, feed)) }
-            }
-            for await (hubTitle, page) in group {
-                for box in page?.Containers.flatMap(\.boxes) ?? [] where !box.URL.isEmpty && !box.title.isEmpty {
-                    guard seen.insert(box.URL).inserted else { continue }
-                    found.append(SearchEntry(
-                        id: box.URL, title: box.title, subtitle: box.subtitle, image: box.image,
-                        url: box.URL, urlType: box.URLType, group: hubTitle,
-                        key: Self.normalize(box.title + " " + box.subtitle)))
+                let page = try? await API.get(FeedPage.self, hub.link)
+                if Task.isCancelled { return }
+                guard let index = hubs.firstIndex(where: { $0.id == hub.id }) else { continue }
+                hubs[index].isLoading = false
+                if let page {
+                    hubs[index].boxes = page.Containers.flatMap(\.boxes).filter { !$0.URL.isEmpty }
+                    hubs[index].hasMore = page.hasMore
+                } else {
+                    hubs[index].failed = true
                 }
             }
+            isSearching = false
         }
-        entries = found
-        loaded = true
     }
 
     /// Makes Arabic and Persian spellings of the same word compare equal.
@@ -75,30 +81,12 @@ final class SearchIndex: ObservableObject {
         }
         return out.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
     }
-
-    func matchingChannels(_ query: String) -> [Channel] {
-        let needle = Self.normalize(query)
-        guard !needle.isEmpty else { return [] }
-        return channels.filter { Self.normalize($0.title + " " + $0.name).contains(needle) }
-    }
-
-    /// Matches grouped by hub, in the order hubs were first seen, capped per hub.
-    func matches(_ query: String) -> [(group: String, items: [SearchEntry])] {
-        let words = Self.normalize(query).components(separatedBy: " ").filter { !$0.isEmpty }
-        guard !words.isEmpty else { return [] }
-        var order: [String] = []
-        var map: [String: [SearchEntry]] = [:]
-        for entry in entries where words.allSatisfy({ entry.key.contains($0) }) {
-            if map[entry.group] == nil { order.append(entry.group) }
-            if (map[entry.group]?.count ?? 0) < 25 { map[entry.group, default: []].append(entry) }
-        }
-        return order.map { (group: $0, items: map[$0] ?? []) }
-    }
 }
 
 struct SearchView: View {
-    @StateObject private var index = SearchIndex.shared
+    @StateObject private var model = SearchModel()
     @State private var query: String
+    private let preview = 5
 
     init(initialQuery: String = "") {
         _query = State(initialValue: initialQuery)
@@ -106,21 +94,27 @@ struct SearchView: View {
 
     var body: some View {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        let stations = index.matchingChannels(trimmed)
-        let groups = index.matches(trimmed)
+        let stations = model.matchingChannels(trimmed)
+        let found = model.hubs.filter { !$0.boxes.isEmpty }
+        let failed = model.hubs.filter(\.failed)
         Group {
-            if trimmed.isEmpty {
+            if trimmed.count < 2 {
                 ContentUnavailableView {
                     Label("جست‌وجو در ایران‌صدا", systemImage: "magnifyingglass")
                 } description: {
-                    Text("نام شبکه، کتاب، پادکست یا برنامه را بنویسید. جست‌وجو میان شبکه‌ها و قفسه‌های صفحه اول هر پایگاه انجام می‌شود.")
+                    Text("نام کتاب، نویسنده، راوی، برنامه یا شبکه را بنویسید.")
                 }
-            } else if stations.isEmpty && groups.isEmpty {
-                if index.isLoading {
-                    ProgressView("در حال آماده‌سازی جست‌وجو…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
+            } else if stations.isEmpty && found.isEmpty && !model.isSearching && model.searched == trimmed {
+                if failed.isEmpty {
                     ContentUnavailableView.search(text: trimmed)
+                } else {
+                    ContentUnavailableView {
+                        Label("جست‌وجو انجام نشد", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text("سرور پاسخ نداد. دوباره تلاش کنید.")
+                    } actions: {
+                        Button("تلاش دوباره") { retry(trimmed) }.buttonStyle(.borderedProminent)
+                    }
                 }
             } else {
                 List {
@@ -133,26 +127,60 @@ struct SearchView: View {
                             }
                         }
                     }
-                    ForEach(groups, id: \.group) { group in
-                        Section(group.group) {
-                            ForEach(group.items) { entry in
+                    ForEach(found) { hub in
+                        Section(hub.title) {
+                            ForEach(Array(hub.boxes.prefix(preview).enumerated()), id: \.offset) { _, box in
                                 NavigationLink {
-                                    LinkDestination(urlType: entry.urlType, url: entry.url, title: entry.title)
+                                    LinkDestination(urlType: box.URLType, url: box.URL, title: box.title)
                                 } label: {
-                                    row(image: entry.image, title: entry.title, subtitle: entry.subtitle, symbol: "headphones")
+                                    row(image: box.image, title: box.title, subtitle: box.subtitle, symbol: "headphones")
                                 }
                             }
+                            if hub.boxes.count > preview || hub.hasMore {
+                                NavigationLink {
+                                    FeedScreen(url: hub.link, title: "«\(trimmed)» در \(hub.title)", asList: true)
+                                } label: {
+                                    Label(hub.hasMore ? "همه نتایج" : "همه \(Format.fa(hub.boxes.count)) نتیجه", systemImage: "list.bullet")
+                                        .foregroundStyle(.tint)
+                                }
+                            }
+                        }
+                    }
+                    if model.isSearching || model.searched != trimmed {
+                        Section {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text(progressText).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .listRowBackground(Color.clear)
                         }
                     }
                 }
                 .listStyle(.insetGrouped)
             }
         }
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "شبکه، کتاب، پادکست…")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "کتاب، راوی، برنامه، شبکه…")
         .autocorrectionDisabled()
+        .onSubmit(of: .search) { model.search(query) }
         .navigationTitle("جست‌وجو")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await index.load() }
+        .task { await model.prepare() }
+        // Search a moment after typing stops, so each keystroke is not a request.
+        .task(id: query) {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            if !Task.isCancelled { model.search(query) }
+        }
+    }
+
+    private var progressText: String {
+        if let hub = model.hubs.first(where: \.isLoading) { return "در حال جست‌وجو در \(hub.title)…" }
+        return "در حال جست‌وجو…"
+    }
+
+    private func retry(_ text: String) {
+        model.search("")
+        model.search(text)
     }
 
     private func row(image: String, title: String, subtitle: String, symbol: String) -> some View {

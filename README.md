@@ -27,13 +27,13 @@ Screenshots use built-in sample data, so covers appear as coloured tiles.
 - **Audio library:** audiobooks, podcasts, music, kids, Quran, talks and the other hubs the service lists
 - **Player:** background audio, lock-screen controls, 15-second skip, playback speed, sleep timer, AirPlay, resume where you stopped
 - **Offline:** download files with progress, play them without a connection
-- **Search:** stations and the front shelves of every hub, searched on the device
+- **Search:** the whole catalogue of every hub (titles, authors, narrators), plus stations
 - **Library:** favourites and listening history, kept only on the device
 - **Fast:** covers and logos are cached on disk; long lists load page by page
 - **Widget:** continue listening and favourite stations on the home screen
 - **Persian, right-to-left UI** with dark mode and large text sizes
 
-Not there yet: full-catalogue search, comments and likes. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
+Not there yet: comments and likes. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
 
 ## Build and run
 

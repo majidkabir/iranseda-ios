@@ -31,6 +31,16 @@ A feed whose response says `"Infinity": "true"` has more pages. The next page is
 `pn=2`, then `pn=3`, and so on (`PageNo` in the response confirms the page). A page that only repeats
 earlier items means the list has ended.
 
+## Search
+
+Each hub searches its own catalogue: `<hub UrlAddress>search/?t=<text>`, for example
+`/book/search/?t=...`. The response is a normal feed (30 results per page, `pn` for more). It matches
+titles, authors, narrators and other tags. There is no working search across all hubs, so the app asks
+each hub in turn; stations are matched on the device.
+
+Search is slow (4 to 11 seconds per hub) and the server answers one search at a time, so send them one
+after another and only after the user stops typing.
+
 ## Radio programmes
 
 A programme home (`/radio/ProgramHome/`) has tabs. Type 7 is what is on air now, type 1 is past episodes:
@@ -39,9 +49,6 @@ player detail whose `items[]` are the half-hour parts of that broadcast, each do
 
 ## Unknown
 
-- The search call. The Android app receives a search link from the server (`SearchURL`), but where that
-  comes from is not known. The app therefore searches on the device: all stations, plus the front shelves
-  of every hub.
 - Playing from a time in the archive (`PlayUrlByTime`) is assumed to return a player detail; not verified.
 - Comments, likes, contests and programme staff lists are not used.
 
