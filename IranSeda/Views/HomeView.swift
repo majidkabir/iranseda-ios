@@ -375,7 +375,7 @@ private struct BoxCard: View {
     var body: some View {
         let size: CGFloat = banner ? 288 : (circle ? 96 : 132)
         VStack(alignment: circle ? .center : .leading, spacing: 6) {
-            Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "7" ? "square.stack.fill" : "headphones"))
+            Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "9" ? "headphones" : "square.stack.fill"))
                 .frame(width: size, height: banner ? 150 : size)
                 .clipShape(circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Theme.corner)))
             if !box.title.isEmpty {

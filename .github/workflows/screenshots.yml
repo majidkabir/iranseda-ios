@@ -88,11 +88,17 @@ jobs:
           real detail 15
           real search 75 "بهروز رضوی"
           for f in real/*.png; do sips -Z 1100 "$f" >/dev/null; done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: real-shots
-          path: real
-          retention-days: 1
+      - name: Publish real-service pictures to the real-shots branch
+        continue-on-error: true
+        run: |
+          mkdir /tmp/real && cp real/*.png /tmp/real/
+          cd /tmp/real
+          git init -q -b real-shots
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "$GITHUB_SHA" > SOURCE
+          git add -A && git commit -qm "Real-service screenshots for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" real-shots
       - name: Publish to screenshots branch
         run: |
           for f in shots/*.png; do sips -Z 1100 "$f" >/dev/null; done

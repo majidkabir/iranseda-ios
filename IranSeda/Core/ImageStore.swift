@@ -40,19 +40,32 @@ actor ImageStore {
 
         if let running = inflight[url] { return await running.value }
         let task = Task<UIImage?, Never> {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 20
-            guard let (data, response) = try? await URLSession.shared.data(for: request),
-                  (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
-                  let image = Self.decode(data) else { return nil }
-            try? data.write(to: file, options: .atomic)
-            Self.remember(image, key: key)
-            return image
+            for candidate in Self.candidates(for: url) {
+                var request = URLRequest(url: candidate)
+                request.timeoutInterval = 15
+                guard let (data, response) = try? await URLSession.shared.data(for: request),
+                      (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
+                      let image = Self.decode(data) else { continue }
+                try? data.write(to: file, options: .atomic)
+                Self.remember(image, key: key)
+                return image
+            }
+            return nil
         }
         inflight[url] = task
         let image = await task.value
         inflight[url] = nil
         return image
+    }
+
+    /// The service hands out many picture links as plain http, but some of its hosts
+    /// (kids.iranseda.ir, for one) only answer over https. Try https first, then the link as given.
+    private static func candidates(for url: URL) -> [URL] {
+        guard url.scheme == "http", url.port == nil, let host = url.host,
+              host.hasSuffix("iranseda.ir") || host.hasSuffix("radio.ir"),
+              var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return [url] }
+        parts.scheme = "https"
+        return [parts.url, url].compactMap { $0 }
     }
 
     /// Bytes used on disk.
