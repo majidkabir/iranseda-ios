@@ -246,6 +246,7 @@ private struct FeedContent: View {
     @State private var containers: [FeedContainer]
     @State private var page = 1
     @State private var hasMore: Bool
+    @State private var loadFailed = false
     @State private var seen: Set<String>
 
     init(url: String, first: FeedPage, asList: Bool) {
@@ -268,10 +269,17 @@ private struct FeedContent: View {
                         ContainerView(container: container, asList: asList)
                     }
                     if hasMore {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .task(id: page) { await loadMore() }
+                        if loadFailed {
+                            Button("بارگیری بیشتر") { loadFailed = false }
+                                .buttonStyle(.bordered)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        } else {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .task(id: page) { await loadMore() }
+                        }
                     }
                 }
                 .padding(.vertical, 12)
@@ -282,7 +290,16 @@ private struct FeedContent: View {
     private func loadMore() async {
         let next = page + 1
         let link = url + (url.contains("?") ? "&" : "?") + "pn=\(next)"
-        guard let more = try? await API.get(FeedPage.self, link) else { hasMore = false; return }
+        let more: FeedPage
+        do {
+            more = try await API.get(FeedPage.self, link)
+        } catch {
+            // The spinner scrolling off screen cancels the request; that is not the end of the list.
+            // It simply starts again when the spinner comes back into view.
+            let cancelled = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
+            if !cancelled { loadFailed = true }
+            return
+        }
         var added = false
         for var container in more.Containers {
             // A page that repeats what is already shown means the list has ended.
