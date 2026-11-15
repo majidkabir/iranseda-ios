@@ -30,9 +30,10 @@ Screenshots use built-in sample data, so covers appear as coloured tiles.
 - **Search:** stations and the front shelves of every hub, searched on the device
 - **Library:** favourites and listening history, kept only on the device
 - **Fast:** covers and logos are cached on disk; long lists load page by page
+- **Widget:** continue listening and favourite stations on the home screen
 - **Persian, right-to-left UI** with dark mode and large text sizes
 
-Not there yet: full-catalogue search, comments and likes, widgets. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
+Not there yet: full-catalogue search, comments and likes. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
 
 ## Build and run
 
@@ -46,7 +47,7 @@ xcodegen            # creates IranSeda.xcodeproj from project.yml
 open IranSeda.xcodeproj
 ```
 
-In Xcode, select the IranSeda target, set your own Team under Signing & Capabilities, and change the bundle identifier (`com.majidkabir.iranseda` in `project.yml`) to one of your own. Then run on a simulator or device.
+In Xcode, select the IranSeda target, set your own Team under Signing & Capabilities, and change the identifiers in `project.yml` (`com.majidkabir.iranseda`, its `.widget` and `group.` forms, also in `Shared/WidgetSnapshot.swift`) to your own. Then run on a simulator or device.
 
 To try the app without the network, add the launch arguments `-demo YES`.
 
@@ -58,7 +59,8 @@ To install on your own iPhone through TestFlight from GitHub Actions, see [docs/
 | --- | --- |
 | `IranSeda/Core` | API client, models, player, downloads, favourites, demo data |
 | `IranSeda/UI` | Shared components: artwork, loader, buttons |
-| `IranSeda/Views` | Screens: home, radio, detail, player, library, settings |
+| `IranSeda/Views` | Screens: home, radio, search, detail, player, library, settings |
+| `IranSedaWidget`, `Shared` | Home-screen widget and the data it shares with the app |
 | `.github/workflows` | CI build, simulator screenshots, TestFlight upload |
 | `docs` | API notes, TestFlight and CarPlay guides, screenshots |
 

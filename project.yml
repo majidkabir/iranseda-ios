@@ -15,6 +15,13 @@ targets:
     platform: iOS
     sources:
       - IranSeda
+      - Shared
+    dependencies:
+      - target: IranSedaWidget
+    entitlements:
+      path: IranSeda/IranSeda.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.majidkabir.iranseda]
     info:
       path: IranSeda/Info.plist
       properties:
@@ -39,6 +46,10 @@ targets:
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         ITSAppUsesNonExemptEncryption: false
         UIBackgroundModes: [audio]
+        # sedaplus://open?id=... is how the widget asks the app to play something.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.majidkabir.iranseda
+            CFBundleURLSchemes: [sedaplus]
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
     settings:
@@ -48,6 +59,30 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
+  IranSedaWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - IranSedaWidget
+      - Shared
+    entitlements:
+      path: IranSedaWidget/IranSedaWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.majidkabir.iranseda]
+    info:
+      path: IranSedaWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Seda+
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.majidkabir.iranseda.widget
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
 schemes:
   IranSeda:
     build:
