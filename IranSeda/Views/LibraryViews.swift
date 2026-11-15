@@ -15,7 +15,7 @@ struct LibraryView: View {
 
     init() {
         let start: Part
-        switch Demo.isOn ? Demo.screen : "" {
+        switch Demo.screen {
         case "downloads": start = .downloads
         case "recents": start = .recents
         default: start = .favorites
@@ -107,21 +107,24 @@ struct LibraryView: View {
         }
     }
 
-    /// Plays a saved file by wrapping it in a one-track player detail.
+    /// Plays a saved file, with the other downloaded files of the same album queued around it.
     @MainActor private func play(_ item: DownloadedItem) {
         Haptics.tap()
-        let file = downloads.fileURL(for: item)
+        let album = downloads.items.filter { $0.album == item.album }
+        let tracks: [[String: String]] = album.map {
+            ["name": $0.title, "duration": $0.durationMs, "FileID": $0.id, "playUrl": downloads.fileURL(for: $0).absoluteString]
+        }
         let json: [String: Any] = [
-            "itemid": "download-" + item.id,
+            "itemid": "download-" + item.album,
             "title": item.album,
             "chTitle": "دانلودها",
             "type": "aod",
             "image": item.image,
-            "items": [["name": item.title, "duration": item.durationMs, "FileID": item.id, "playUrl": file.absoluteString]],
+            "items": tracks,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: json),
               let detail = try? JSONDecoder().decode(PlayerDetail.self, from: data) else { return }
-        player.play(detail)
+        player.play(detail, at: album.firstIndex { $0.id == item.id } ?? 0)
     }
 }
 

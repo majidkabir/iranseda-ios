@@ -16,9 +16,15 @@ final class Player: ObservableObject {
     @Published private(set) var duration: Double = 0
     @Published private(set) var sleepAt: Date?
     @Published private(set) var rate: Float = 1
+    /// True while the player is waiting for data, so the UI can show a spinner instead of "playing".
+    @Published private(set) var isBuffering = false
+    /// Set when a file or stream cannot be played; the UI shows it once.
+    @Published var failure: String?
 
     private let av = AVPlayer()
     private var timeObserver: Any?
+    private var statusObservation: NSKeyValueObservation?
+    private var itemObservation: NSKeyValueObservation?
     private var observers: [NSObjectProtocol] = []
     private var sleepTask: Task<Void, Never>?
     private var artwork: MPMediaItemArtwork?
@@ -61,7 +67,27 @@ final class Player: ObservableObject {
                 if reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue { self?.pause() }
             }
         })
+        observers.append(center.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: nil, queue: .main) { [weak self] note in
+            let message = (note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription
+            Task { @MainActor in self?.itemFailed(message) }
+        })
+        statusObservation = av.observe(\.timeControlStatus) { [weak self] player, _ in
+            let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+            Task { @MainActor in
+                guard let self else { return }
+                self.isBuffering = waiting && self.isPlaying
+            }
+        }
         setUpRemoteCommands()
+    }
+
+    private func itemFailed(_ message: String?) {
+        guard album != nil else { return }
+        isPlaying = false
+        isBuffering = false
+        failure = isLive ? "پخش زنده این شبکه در دسترس نیست." : "پخش این فایل ممکن نشد."
+        if let message, !message.isEmpty { failure = (failure ?? "") + "\n" + message }
+        updateNowPlaying()
     }
 
     // MARK: Playback
@@ -87,7 +113,14 @@ final class Player: ObservableObject {
         guard !Demo.isOn else { isPlaying = true; position = duration * 0.37; return }
         guard let url = DownloadStore.shared.localFile(for: track) ?? API.resolve(track.playUrl) else { return }
         try? AVAudioSession.sharedInstance().setActive(true)
-        av.replaceCurrentItem(with: AVPlayerItem(url: url))
+        let item = AVPlayerItem(url: url)
+        itemObservation = item.observe(\.status) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            let message = item.error?.localizedDescription
+            Task { @MainActor in self?.itemFailed(message) }
+        }
+        failure = nil
+        av.replaceCurrentItem(with: item)
         if !album.isLive, let resume = resumePosition(for: track), resume > 5 {
             av.seek(to: CMTime(seconds: resume, preferredTimescale: 600))
             position = resume
@@ -114,7 +147,14 @@ final class Player: ObservableObject {
         guard album != nil else { return }
         if Demo.isOn { isPlaying.toggle(); return }
         guard av.currentItem != nil else { return }
-        if isPlaying { pause() } else { resume() }
+        if isPlaying {
+            pause()
+        } else if isLive || av.currentItem?.status == .failed {
+            // A paused live stream has fallen behind; reconnect to hear what is on air now.
+            start(index: index)
+        } else {
+            resume()
+        }
     }
 
     func next() { if hasNext { start(index: index + 1) } }
@@ -143,6 +183,8 @@ final class Player: ObservableObject {
         av.pause()
         av.replaceCurrentItem(with: nil)
         isPlaying = false
+        isBuffering = false
+        itemObservation = nil
         album = nil
         sleep(afterMinutes: nil)
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -171,7 +213,7 @@ final class Player: ObservableObject {
             if isPlaying { isPlaying = false; saveResume(); updateNowPlaying() }
         case .ended:
             if AVAudioSession.InterruptionOptions(rawValue: optionValue).contains(.shouldResume), album != nil {
-                resume()
+                if isLive { start(index: index) } else { resume() }
             }
         @unknown default:
             break
@@ -260,6 +302,13 @@ final class Player: ObservableObject {
 
     private func updateNowPlaying() {
         guard album != nil, !Demo.isOn else { return }
+        // Lock-screen buttons follow what is possible: no seeking in a live stream.
+        let center = MPRemoteCommandCenter.shared()
+        center.skipForwardCommand.isEnabled = !isLive
+        center.skipBackwardCommand.isEnabled = !isLive
+        center.changePlaybackPositionCommand.isEnabled = !isLive
+        center.nextTrackCommand.isEnabled = hasNext
+        center.previousTrackCommand.isEnabled = hasPrevious
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyAlbumTitle: subtitle,

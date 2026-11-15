@@ -31,10 +31,16 @@ struct MiniPlayer: View {
                     Haptics.tap()
                     player.toggle()
                 } label: {
-                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                        .frame(width: 44, height: 44)
-                        .contentTransition(.symbolEffect(.replace))
+                    Group {
+                        if player.isBuffering {
+                            ProgressView()
+                        } else {
+                            Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title2)
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                    }
+                    .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(player.isPlaying ? "توقف" : "پخش")
@@ -110,6 +116,11 @@ struct NowPlayingView: View {
             }
             .sheet(isPresented: $showQueue) { QueueView().presentationDetents([.medium, .large]) }
             .onChange(of: player.album == nil) { _, stopped in if stopped { dismiss() } }
+            .alert("پخش نشد", isPresented: Binding(get: { player.failure != nil }, set: { if !$0 { player.failure = nil } })) {
+                Button("باشه", role: .cancel) {}
+            } message: {
+                Text(player.failure ?? "")
+            }
         }
         .environment(\.layoutDirection, .rightToLeft)
     }
@@ -161,6 +172,8 @@ struct NowPlayingView: View {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 72))
                     .contentTransition(.symbolEffect(.replace))
+                    .opacity(player.isBuffering ? 0.35 : 1)
+                    .overlay { if player.isBuffering { ProgressView().controlSize(.large) } }
                     .frame(maxWidth: .infinity)
             }
             .accessibilityLabel(player.isPlaying ? "توقف" : "پخش")

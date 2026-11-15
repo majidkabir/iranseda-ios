@@ -334,7 +334,7 @@ private struct ContainerView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 12) {
                         ForEach(Array(container.boxes.enumerated()), id: \.offset) { _, box in
-                            BoxLink(box: box) { BoxCard(box: box, circle: container.isCircle == "1") }
+                            BoxLink(box: box) { BoxCard(box: box, circle: container.isCircle == "1", banner: container.isBanner) }
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
@@ -370,12 +370,13 @@ private struct BoxLink<Label: View>: View {
 private struct BoxCard: View {
     let box: FeedBox
     let circle: Bool
+    var banner = false
 
     var body: some View {
-        let size: CGFloat = circle ? 96 : 132
+        let size: CGFloat = banner ? 288 : (circle ? 96 : 132)
         VStack(alignment: circle ? .center : .leading, spacing: 6) {
             Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "7" ? "square.stack.fill" : "headphones"))
-                .frame(width: size, height: size)
+                .frame(width: size, height: banner ? 150 : size)
                 .clipShape(circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Theme.corner)))
             if !box.title.isEmpty {
                 Text(box.title)

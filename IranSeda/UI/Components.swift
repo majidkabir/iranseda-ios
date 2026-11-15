@@ -101,7 +101,7 @@ struct Loader<T, Content: View>: View {
             }
         }
         .task { if value == nil { await run() } }
-        .refreshable { await run() }
+        .refreshable { await API.$wantsFresh.withValue(true) { await run() } }
     }
 
     private func run() async {
