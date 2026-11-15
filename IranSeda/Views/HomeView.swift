@@ -277,6 +277,8 @@ private struct FeedContent: View {
     @State private var page = 1
     @State private var hasMore: Bool
     @State private var loadFailed = false
+    @State private var isLoading = false
+    @State private var spinnerVisible = false
     @State private var seen: Set<String>
 
     init(url: String, first: FeedPage, asList: Bool, header: AnyView?) {
@@ -312,11 +314,34 @@ private struct FeedContent: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
-                            .task(id: page) { await loadMore() }
+                            .onAppear { spinnerVisible = true; loadWhileVisible() }
+                            .onDisappear { spinnerVisible = false }
                     }
+                } else if containers.count == 1, let only = containers.first, only.boxes.count > 5 {
+                    // The end of a plain list: say so, with the count, so it is clear nothing is missing.
+                    Text("پایان فهرست · " + Format.fa(only.boxes.count) + " مورد")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
                 }
             }
             .padding(.vertical, 12)
+        }
+    }
+
+    /// Loads page after page for as long as the spinner at the end of the list is on screen.
+    /// The work runs in its own task, so the spinner scrolling away never cancels a request.
+    private func loadWhileVisible() {
+        guard !isLoading else { return }
+        isLoading = true
+        Task { @MainActor in
+            defer { isLoading = false }
+            var pages = 0
+            repeat {
+                await loadMore()
+                pages += 1
+            } while hasMore && !loadFailed && spinnerVisible && pages < 50
         }
     }
 
@@ -327,10 +352,7 @@ private struct FeedContent: View {
         do {
             more = try await API.get(FeedPage.self, link)
         } catch {
-            // The spinner scrolling off screen cancels the request; that is not the end of the list.
-            // It simply starts again when the spinner comes back into view.
-            let cancelled = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
-            if !cancelled { loadFailed = true }
+            loadFailed = true
             return
         }
         var added = false
