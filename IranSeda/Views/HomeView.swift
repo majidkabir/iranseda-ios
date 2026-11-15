@@ -186,14 +186,30 @@ struct HubView: View {
 
     var body: some View {
         let current = tabs.first { $0.id == selected } ?? tabs.first
+        Group {
+            if let current {
+                FeedView(url: current.FeedAddress).id(current.id)
+            } else {
+                ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray")
+            }
+        }
+        // The tab row is pinned as a top inset, so the list below stays the screen's main scroll view.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if tabs.count > 1 { tabRow(current: current) }
+        }
+        .navigationTitle(hub.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Horizontally scrolling tabs. The row scrolls in a left-to-right frame with the tabs reversed
+    /// and anchored at its right end: a right-to-left scroll row wider than the screen can open at
+    /// the wrong end, so the first tab would be out of sight.
+    private func tabRow(current: HubTab?) -> some View {
         VStack(spacing: 0) {
-            if tabs.count > 1 {
-                ScrollViewReader { proxy in
+            ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    // Lazy, like the shelves: a plain HStack wider than the screen opens at the wrong
-                    // end (or blank) in a right-to-left layout.
-                    LazyHStack(spacing: 8) {
-                        ForEach(tabs) { tab in
+                    HStack(spacing: 8) {
+                        ForEach(Array(tabs.reversed())) { tab in
                             let on = tab.id == current?.id
                             Button {
                                 Haptics.tap()
@@ -213,20 +229,14 @@ struct HubView: View {
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
-                    .frame(height: 52)
+                    .padding(.vertical, 8)
                 }
-                }
-                .background(.bar)
-                Divider()
+                .defaultScrollAnchor(.trailing)
             }
-            if let current {
-                FeedView(url: current.FeedAddress).id(current.id)
-            } else {
-                ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray")
-            }
+            .environment(\.layoutDirection, .leftToRight)
+            Divider()
         }
-        .navigationTitle(hub.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .background(.bar)
     }
 }
 
