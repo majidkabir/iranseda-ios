@@ -235,3 +235,15 @@ struct FavoriteButton: View {
         .accessibilityLabel(on ? "حذف از علاقه‌مندی‌ها" : "افزودن به علاقه‌مندی‌ها")
     }
 }
+
+extension View {
+    /// Turns off the iOS 26 scroll edge effect for scroll views inside this view.
+    @ViewBuilder
+    func withoutScrollEdgeEffect() -> some View {
+        if #available(iOS 26.0, *) {
+            scrollEdgeEffectHidden(true, for: .all)
+        } else {
+            self
+        }
+    }
+}

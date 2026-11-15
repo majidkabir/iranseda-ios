@@ -232,6 +232,9 @@ struct HubView: View {
                     .padding(.vertical, 8)
                 }
                 .defaultScrollAnchor(.trailing)
+                // iOS 26 fades scrolling content that sits right under the navigation bar; on this
+                // row that hid the tabs entirely whenever they were wide enough to scroll.
+                .withoutScrollEdgeEffect()
             }
             .environment(\.layoutDirection, .leftToRight)
             Divider()

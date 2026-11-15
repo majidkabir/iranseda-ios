@@ -43,7 +43,7 @@ jobs:
           test -d build/Build/Products/Debug-iphonesimulator/IranSeda.app
       - name: Capture
         env:
-          SCREENS: home empty radio channel hub detail serial episodes search player playerlive library downloads recents settings
+          SCREENS: hub
         run: |
           UDID=${{ steps.sim.outputs.udid }}
           BUNDLE=com.majidkabir.iranseda
@@ -60,13 +60,13 @@ jobs:
               xcrun simctl io "$UDID" screenshot "shots/$2.png"
             fi
           }
-          for mode in light dark; do
+          for mode in light; do
             xcrun simctl ui "$UDID" appearance $mode
             for screen in $SCREENS; do shoot "$screen" "$mode-$screen"; done
           done
           xcrun simctl ui "$UDID" appearance light
           xcrun simctl ui "$UDID" content_size accessibility-large
-          for screen in home radio detail player search; do shoot "$screen" "xl-$screen"; done
+          true
           ls -la shots
       - name: Capture with the real service
         continue-on-error: true
@@ -81,12 +81,7 @@ jobs:
             sleep "$2"
             xcrun simctl io "$UDID" screenshot "real/$1.png"
           }
-          real home 20
-          real radio 15
-          real channel 15
           real hub 20
-          real detail 15
-          real search 75 "بهروز رضوی"
           for f in real/*.png; do sips -Z 1100 "$f" >/dev/null; done
       - name: Publish real-service pictures to the real-shots branch
         continue-on-error: true
