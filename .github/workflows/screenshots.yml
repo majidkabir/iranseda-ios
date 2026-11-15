@@ -43,7 +43,7 @@ jobs:
           test -d build/Build/Products/Debug-iphonesimulator/IranSeda.app
       - name: Capture
         env:
-          SCREENS: home empty radio channel hub detail serial player playerlive library downloads recents settings
+          SCREENS: home empty radio channel hub detail serial episodes search player playerlive library downloads recents settings
         run: |
           UDID=${{ steps.sim.outputs.udid }}
           BUNDLE=com.majidkabir.iranseda
@@ -54,6 +54,11 @@ jobs:
             xcrun simctl launch "$UDID" $BUNDLE -demo YES -screen "$1"
             sleep 7
             xcrun simctl io "$UDID" screenshot "shots/$2.png"
+            # A slow launch leaves a blank (tiny) picture: wait and shoot again.
+            if [ "$(stat -f%z "shots/$2.png")" -lt 90000 ]; then
+              sleep 8
+              xcrun simctl io "$UDID" screenshot "shots/$2.png"
+            fi
           }
           for mode in light dark; do
             xcrun simctl ui "$UDID" appearance $mode
@@ -61,7 +66,7 @@ jobs:
           done
           xcrun simctl ui "$UDID" appearance light
           xcrun simctl ui "$UDID" content_size accessibility-large
-          for screen in home radio detail player; do shoot "$screen" "xl-$screen"; done
+          for screen in home radio detail player search; do shoot "$screen" "xl-$screen"; done
           ls -la shots
       - name: Publish to screenshots branch
         run: |

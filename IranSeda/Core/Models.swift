@@ -78,6 +78,8 @@ struct HubTab: Decodable, Identifiable {
 // MARK: - Feed page: containers of boxes (used by every hub tab and list)
 
 struct FeedPage: Decodable {
+    @Lossy var ServerTime: String
+    @Lossy var Infinity: String     // "true" when more pages exist (next page: add pn=2, pn=3, ...)
     @Lossy var PageTitle: String
     @LossyList var Containers: [FeedContainer]
 }
@@ -223,6 +225,28 @@ struct ProgramItem: Decodable {
     @Lossy var title: String
     @Lossy var imageUrl: String
     @Lossy var programHome: String
+}
+
+/// Past episodes of a radio programme.
+struct ProgramEpisodes: Decodable {
+    @LossyList var episodes: [Episode]
+}
+
+struct Episode: Decodable {
+    @Lossy var itemid: String
+    @Lossy var day: String
+    @Lossy var month: String
+    @Lossy var year: String         // e.g. "1405-ساعت 02:00"
+    @Lossy var description1: String
+    @Lossy var duration: String     // seconds
+    @Lossy var PlayURL: String
+
+    var title: String {
+        let parts = year.components(separatedBy: "-")
+        let date = [day, month, parts.first ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
+        let time = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+        return Format.fa(time.isEmpty ? date : date + "، " + time)
+    }
 }
 
 struct TimeArchive: Decodable {

@@ -27,10 +27,12 @@ Screenshots use built-in sample data, so covers appear as coloured tiles.
 - **Audio library:** audiobooks, podcasts, music, kids, Quran, talks and the other hubs the service lists
 - **Player:** background audio, lock-screen controls, 15-second skip, playback speed, sleep timer, AirPlay, resume where you stopped
 - **Offline:** download files with progress, play them without a connection
+- **Search:** stations and the front shelves of every hub, searched on the device
 - **Library:** favourites and listening history, kept only on the device
+- **Fast:** covers and logos are cached on disk; long lists load page by page
 - **Persian, right-to-left UI** with dark mode and large text sizes
 
-Not there yet: content search, paging of long lists, comments and likes, CarPlay, widgets, iPad layout. See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
+Not there yet: full-catalogue search, comments and likes, widgets. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
 
 ## Build and run
 
@@ -58,7 +60,7 @@ To install on your own iPhone through TestFlight from GitHub Actions, see [docs/
 | `IranSeda/UI` | Shared components: artwork, loader, buttons |
 | `IranSeda/Views` | Screens: home, radio, detail, player, library, settings |
 | `.github/workflows` | CI build, simulator screenshots, TestFlight upload |
-| `docs` | API notes, TestFlight guide, screenshots |
+| `docs` | API notes, TestFlight and CarPlay guides, screenshots |
 
 The service's API is undocumented. What this app relies on is written down in [docs/API.md](docs/API.md).
 

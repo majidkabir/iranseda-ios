@@ -275,8 +275,7 @@ final class Player: ObservableObject {
     private func loadArtwork(_ link: String) {
         guard !Demo.isOn, let url = API.resolve(link) else { return }
         Task { [weak self] in
-            guard let (data, _) = try? await URLSession.shared.data(from: url),
-                  let image = UIImage(data: data) else { return }
+            guard let image = await ImageStore.shared.image(for: url) else { return }
             self?.artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             self?.updateNowPlaying()
         }

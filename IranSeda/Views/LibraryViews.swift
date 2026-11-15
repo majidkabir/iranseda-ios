@@ -159,6 +159,7 @@ struct SettingsView: View {
     @EnvironmentObject private var library: Library
     @State private var confirmDownloads = false
     @State private var confirmHistory = false
+    @State private var imageBytes: Int64 = 0
 
     var body: some View {
         Form {
@@ -166,11 +167,23 @@ struct SettingsView: View {
                 Picker("سرعت پخش", selection: Binding(get: { player.rate }, set: { player.setRate($0) })) {
                     ForEach(Player.speeds, id: \.self) { Text(NowPlayingView.speedLabel($0)).tag($0) }
                 }
-                Button("فراموش کردن محل توقف فایل‌ها") { Player.clearResumePositions() }
+                Button("فراموش کردن محل توقف فایل‌ها") {
+                    Player.clearResumePositions()
+                    Haptics.success()
+                }
             }
 
             Section {
                 LabeledContent("فضای دانلودها", value: Format.bytes(downloads.totalBytes))
+                LabeledContent("حافظه تصاویر", value: Format.bytes(imageBytes))
+                Button("پاک کردن حافظه تصاویر") {
+                    Task {
+                        await ImageStore.shared.clear()
+                        imageBytes = await ImageStore.shared.diskBytes()
+                        Haptics.success()
+                    }
+                }
+                .disabled(imageBytes == 0)
                 Button("حذف همه دانلودها", role: .destructive) { confirmDownloads = true }
                     .disabled(downloads.items.isEmpty)
                 Button("پاک کردن تاریخچه شنیدن", role: .destructive) { confirmHistory = true }
@@ -192,6 +205,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("تنظیمات")
+        .task { imageBytes = await ImageStore.shared.diskBytes() }
         .confirmationDialog("همه فایل‌های دانلودشده حذف شوند؟", isPresented: $confirmDownloads, titleVisibility: .visible) {
             Button("حذف همه", role: .destructive) { downloads.deleteAll() }
             Button("انصراف", role: .cancel) {}

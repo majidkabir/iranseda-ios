@@ -7,8 +7,8 @@ struct IranSedaApp: App {
     @StateObject private var library = Library.shared
 
     init() {
-        // Covers and logos are small and reused everywhere; keep them on disk.
-        URLCache.shared = URLCache(memoryCapacity: 32 << 20, diskCapacity: 256 << 20)
+        URLCache.shared = URLCache(memoryCapacity: 16 << 20, diskCapacity: 64 << 20)
+        Task.detached(priority: .background) { await ImageStore.shared.prune() }
     }
 
     var body: some Scene {
@@ -80,6 +80,8 @@ struct RootView: View {
         case "hub": return AnyView(HubLoader())
         case "detail": return AnyView(DetailView(url: "/book/Details/?g=1"))
         case "serial": return AnyView(HomeInfoView(url: "/book/serialhome/?p=1", title: "قصه‌های جزیره"))
+        case "episodes": return AnyView(EpisodesView(url: "/radio/programArchiveList/?ch=12", title: "قسمت‌ها"))
+        case "search": return AnyView(SearchView(initialQuery: "رادیو"))
         default: return nil
         }
     }

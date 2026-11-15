@@ -109,6 +109,7 @@ struct NowPlayingView: View {
                 }
             }
             .sheet(isPresented: $showQueue) { QueueView().presentationDetents([.medium, .large]) }
+            .onChange(of: player.album == nil) { _, stopped in if stopped { dismiss() } }
         }
         .environment(\.layoutDirection, .rightToLeft)
     }

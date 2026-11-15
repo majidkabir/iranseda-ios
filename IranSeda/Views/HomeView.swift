@@ -43,7 +43,7 @@ struct HomeView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionHeader(title: "پایگاه‌ها")
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
                             ForEach(hubs) { hub in
                                 NavigationLink { HubView(hub: hub) } label: { HubTile(hub: hub) }
                                     .buttonStyle(.plain)
@@ -56,6 +56,12 @@ struct HomeView: View {
             }
         }
         .navigationTitle("ایران‌صدا")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SearchView() } label: { Image(systemName: "magnifyingglass") }
+                    .accessibilityLabel("جست‌وجو")
+            }
+        }
     }
 
     private func load() async throws -> HomeData {
@@ -225,21 +231,68 @@ struct FeedView: View {
 
     var body: some View {
         Loader(load: { try await API.get(FeedPage.self, url) }) { page in
-            let containers = page.Containers.filter { !$0.boxes.isEmpty }
-            if containers.isEmpty {
-                ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray",
-                                       description: Text("این بخش هنوز در برنامه پشتیبانی نمی‌شود یا خالی است."))
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 28) {
-                        ForEach(Array(containers.enumerated()), id: \.offset) { _, container in
-                            ContainerView(container: container)
-                        }
+            FeedContent(url: url, first: page).id(page.ServerTime)
+        }
+    }
+}
+
+/// The containers of a feed, loading further pages (`pn=2`, `pn=3`, ...) as the end comes into view.
+private struct FeedContent: View {
+    let url: String
+    @State private var containers: [FeedContainer]
+    @State private var page = 1
+    @State private var hasMore: Bool
+    @State private var seen: Set<String>
+
+    init(url: String, first: FeedPage) {
+        self.url = url
+        let shown = first.Containers.filter { !$0.boxes.isEmpty }
+        _containers = State(initialValue: shown)
+        _hasMore = State(initialValue: first.Infinity.lowercased() == "true" && !shown.isEmpty)
+        _seen = State(initialValue: Set(shown.flatMap { $0.boxes.map(\.URL) }))
+    }
+
+    var body: some View {
+        if containers.isEmpty {
+            ContentUnavailableView("چیزی برای نمایش نیست", systemImage: "tray",
+                                   description: Text("این بخش هنوز در برنامه پشتیبانی نمی‌شود یا خالی است."))
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    ForEach(Array(containers.enumerated()), id: \.offset) { _, container in
+                        ContainerView(container: container)
                     }
-                    .padding(.vertical, 12)
+                    if hasMore {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .task(id: page) { await loadMore() }
+                    }
                 }
+                .padding(.vertical, 12)
             }
         }
+    }
+
+    private func loadMore() async {
+        let next = page + 1
+        let link = url + (url.contains("?") ? "&" : "?") + "pn=\(next)"
+        guard let more = try? await API.get(FeedPage.self, link) else { hasMore = false; return }
+        var added = false
+        for var container in more.Containers {
+            // A page that repeats what is already shown means the list has ended.
+            container.boxes = container.boxes.filter { !$0.URL.isEmpty && !seen.contains($0.URL) }
+            guard !container.boxes.isEmpty else { continue }
+            added = true
+            seen.formUnion(container.boxes.map(\.URL))
+            if let last = containers.indices.last,
+               containers[last].Title == container.Title, containers[last].isHorizontal == container.isHorizontal {
+                containers[last].boxes += container.boxes
+            } else {
+                containers.append(container)
+            }
+        }
+        if added { page = next } else { hasMore = false }
     }
 }
 

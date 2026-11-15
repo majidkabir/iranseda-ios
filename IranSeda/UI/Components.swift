@@ -32,24 +32,36 @@ struct Artwork: View {
     let link: String
     var title: String = ""
     var symbol: String = "waveform"
+    @State private var loaded: UIImage?
+
+    private var url: URL? { Demo.isOn ? nil : API.resolve(link) }
 
     var body: some View {
+        // An image already in memory shows at once, with no placeholder flash.
+        let image = loaded ?? url.flatMap(ImageStore.cached)
         GeometryReader { geo in
             ZStack {
-                Theme.gradient(for: title)
-                Image(systemName: symbol)
-                    .font(.system(size: max(12, min(geo.size.width, geo.size.height) * 0.36), weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                if !Demo.isOn, let url = API.resolve(link) {
-                    AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFill()
-                        }
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .clipped()
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                        .transition(.opacity)
+                } else {
+                    Theme.gradient(for: title)
+                    Image(systemName: symbol)
+                        .font(.system(size: max(12, min(geo.size.width, geo.size.height) * 0.36), weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
                 }
             }
+        }
+        .task(id: link) {
+            guard let url else { loaded = nil; return }
+            if let hit = ImageStore.cached(url) { loaded = hit; return }
+            loaded = nil
+            let fetched = await ImageStore.shared.image(for: url)
+            if !Task.isCancelled { withAnimation(.easeOut(duration: 0.2)) { loaded = fetched } }
         }
         .accessibilityHidden(true)
     }

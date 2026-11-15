@@ -13,6 +13,7 @@ enum Demo {
         else if l.contains("liveplayer") || l.contains("playby") { json = liveDetailJSON }
         else if l.contains("channelcurrentprogdata") || l.contains("programlastepisode") { json = liveInfoJSON }
         else if l.contains("epgarchivelist") { json = scheduleJSON }
+        else if l.contains("programarchivelist") { json = episodesJSON }
         else if l.contains("programlist") { json = programsJSON }
         else if l.contains("timearchivepart") { json = archivePartJSON }
         else if l.contains("timearchive") { json = timeArchiveJSON }
@@ -156,6 +157,11 @@ enum Demo {
         return "[\(rows.joined(separator: ","))]"
     }
 
+    private static var episodesJSON: String {
+        let rows = (0..<8).map { "{\"itemid\":\"e\($0)\",\"day\":\"\(23 - $0)\",\"month\":\"آبان\",\"year\":\"1405-ساعت 22:00\",\"description1\":\"خبر، موسیقی و ترافیک\",\"duration\":\"7200\",\"PlayURL\":\"/radio/playbyepgid/?e=\($0)\"}" }
+        return "{\"episodes\":[\(rows.joined(separator: ","))]}"
+    }
+
     private static var timeArchiveJSON: String {
         let slots = (0..<12).map { "{\"TimeArchivePart\":\"/radio/timeArchivePart/?ti=\($0)\",\"timeStr\":\"\(String(format: "%02d", $0 * 2)):00\"}" }
         return "{\"dateStr\":\"یکشنبه ۲۴ آبان ۱۴۰۵\",\"items\":[\(slots.joined(separator: ","))]}"
@@ -170,6 +176,6 @@ enum Demo {
 
     private static let homeJSON = """
     {"serialName":"قصه‌های جزیره","imageurl":"","abstract":"مجموعه‌ای شنیدنی از ماجراهای ساکنان یک جزیره‌ی کوچک؛ هر قسمت داستانی تازه.",
-     "tabs":[{"title":"قسمت‌ها","feedAddress":"/book/serialepisodes/?p=1","type":"6"},{"title":"مشخصات","feedAddress":"/book/serialabout/?p=1","type":"6"}]}
+     "tabs":[{"title":"قسمت‌ها","feedAddress":"/book/serialepisodes/?p=1","type":"6"},{"title":"مشخصات","feedAddress":"/book/serialabout/?p=1","type":"6"},{"title":"دیوار","feedAddress":"/x","type":"3"}]}
     """
 }

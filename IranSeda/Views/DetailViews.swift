@@ -194,7 +194,8 @@ struct HomeInfoView: View {
     var body: some View {
         Loader(load: { try await API.get(HomeInfo.self, url) }) { info in
             let name = info.title.isEmpty ? title : info.title
-            let tabs = info.tabs.filter { !$0.feedAddress.isEmpty }
+            // 7 = on air now, 1 = past episodes, 6 = a feed. Comments, contests and staff are not supported.
+            let tabs = info.tabs.filter { !$0.feedAddress.isEmpty && ["7", "1", "6"].contains($0.type) }
             List {
                 Section {
                     VStack(spacing: 12) {
@@ -217,13 +218,13 @@ struct HomeInfoView: View {
                     Section {
                         ForEach(tabs) { tab in
                             NavigationLink {
-                                if tab.type == "7" {
-                                    LiveTab(url: tab.feedAddress).navigationTitle(tab.title)
-                                } else {
-                                    FeedScreen(url: tab.feedAddress, title: tab.title)
+                                switch tab.type {
+                                case "7": LiveTab(url: tab.feedAddress).navigationTitle(tab.title)
+                                case "1": EpisodesView(url: tab.feedAddress, title: tab.title)
+                                default: FeedScreen(url: tab.feedAddress, title: tab.title)
                                 }
                             } label: {
-                                Label(tab.title, systemImage: tab.type == "7" ? "dot.radiowaves.left.and.right" : "list.bullet")
+                                Label(tab.title, systemImage: tab.type == "7" ? "dot.radiowaves.left.and.right" : (tab.type == "1" ? "clock.arrow.circlepath" : "list.bullet"))
                             }
                         }
                     }
@@ -234,6 +235,53 @@ struct HomeInfoView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     FavoriteButton(item: SavedItem(kind: .home, url: url, title: name, subtitle: info.radioName, image: info.imageurl))
                 }
+            }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Past episodes of a radio programme; tapping one plays it.
+struct EpisodesView: View {
+    let url: String
+    let title: String
+
+    var body: some View {
+        Loader(load: { try await API.get(ProgramEpisodes.self, url) }) { list in
+            if list.episodes.isEmpty {
+                ContentUnavailableView("قسمتی پیدا نشد", systemImage: "clock.arrow.circlepath")
+            } else {
+                List {
+                    ForEach(Array(list.episodes.enumerated()), id: \.offset) { _, episode in
+                        AsyncButton {
+                            try await Playback.play(link: episode.PlayURL)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "play.fill")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tint)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.accentColor.opacity(0.14), in: Circle())
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(episode.title).font(.body.weight(.medium))
+                                    let length = Format.clock((Double(episode.duration) ?? 0))
+                                    let meta = [episode.description1.trimmingCharacters(in: .whitespaces), (Double(episode.duration) ?? 0) > 0 ? length : ""]
+                                        .filter { !$0.isEmpty }.joined(separator: " · ")
+                                    if !meta.isEmpty {
+                                        Text(meta).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(episode.PlayURL.isEmpty)
+                    }
+                }
+                .listStyle(.plain)
             }
         }
         .navigationTitle(title)
