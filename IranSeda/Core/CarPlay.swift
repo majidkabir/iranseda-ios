@@ -46,18 +46,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     @MainActor
     private func savedSection(_ saved: [SavedItem]) -> CPListSection {
         let items = saved.prefix(CPListTemplate.maximumItemCount).map { entry in
-            item(title: entry.title, detail: entry.subtitle) {
-                switch entry.kind {
-                case .channel:
-                    let list = try await API.get(RadioList.self, API.radioPath)
-                    guard let channel = list.channels.first(where: { $0.id == entry.ref }) else { throw API.Failure.empty }
-                    try await Playback.playLive(channel)
-                case .detail, .play:
-                    try await Playback.play(link: entry.url, source: entry)
-                case .home:
-                    throw API.Failure.empty   // a series has no single thing to play
-                }
-            }
+            item(title: entry.title, detail: entry.subtitle) { try await Playback.play(saved: entry) }
         }
         return CPListSection(items: Array(items))
     }

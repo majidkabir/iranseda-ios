@@ -26,6 +26,7 @@ struct IranSedaApp: App {
 struct RootView: View {
     @EnvironmentObject private var player: Player
     @State private var showPlayer = false
+    @State private var linkFailure: String?
     @State private var tab: Int
 
     init() {
@@ -59,6 +60,28 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
         }
         .task { await prepareDemo() }
+        .onOpenURL { url in open(url) }
+        .alert("پخش نشد", isPresented: Binding(get: { linkFailure != nil }, set: { if !$0 { linkFailure = nil } })) {
+            Button("باشه", role: .cancel) {}
+        } message: {
+            Text(linkFailure ?? "")
+        }
+    }
+
+    /// Widget taps arrive as sedaplus://open?id=<saved item id>: play that item and show the player.
+    @MainActor private func open(_ url: URL) {
+        guard url.scheme == WidgetSnapshot.scheme,
+              let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value,
+              let item = Library.shared.item(withID: id) else { return }
+        if item.kind == .home { tab = 2; return }
+        Task {
+            do {
+                try await Playback.play(saved: item)
+                showPlayer = true
+            } catch {
+                linkFailure = error.localizedDescription
+            }
+        }
     }
 
     private func page<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

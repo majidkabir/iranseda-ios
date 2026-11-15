@@ -292,6 +292,21 @@ enum Playback {
         Player.shared.play(detail, source: source)
     }
 
+    /// Plays a favourite or recent item directly, as widget and CarPlay taps do.
+    @MainActor
+    static func play(saved item: SavedItem) async throws {
+        switch item.kind {
+        case .channel:
+            let list = try await API.get(RadioList.self, API.radioPath)
+            guard let channel = list.channels.first(where: { $0.id == item.ref }) else { throw API.Failure.empty }
+            try await playLive(channel)
+        case .detail, .play:
+            try await play(link: item.url, source: item)
+        case .home:
+            throw API.Failure.empty   // a series has no single thing to play
+        }
+    }
+
     /// Starts a station's live stream: on-air info first, then its player link.
     @MainActor
     static func playLive(_ channel: Channel) async throws {

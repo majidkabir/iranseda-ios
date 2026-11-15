@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import WidgetKit
 
 /// Something the user can come back to: a favourite or a recently played item.
 struct SavedItem: Codable, Identifiable, Hashable {
@@ -75,10 +76,30 @@ final class Library: ObservableObject {
         save()
     }
 
+    /// Any favourite or recent item by its id; used by widget deep links.
+    func item(withID id: String) -> SavedItem? {
+        favorites.first { $0.id == id } ?? recents.first { $0.id == id }
+    }
+
     private func save() {
         guard !Demo.isOn else { return }
         if let data = try? JSONEncoder().encode(Stored(favorites: favorites, recents: recents)) {
             try? data.write(to: file, options: .atomic)
         }
+        updateWidget()
+    }
+
+    /// Hands the widget the last played item and up to three stations (favourites first).
+    private func updateWidget() {
+        func entry(_ item: SavedItem) -> WidgetSnapshot.Entry {
+            WidgetSnapshot.Entry(id: item.id, title: item.title, subtitle: item.subtitle, isStation: item.kind == .channel)
+        }
+        var stations = favorites.filter { $0.kind == .channel }
+        for item in recents where item.kind == .channel && !stations.contains(where: { $0.id == item.id }) {
+            stations.append(item)
+        }
+        let recent = recents.first { $0.kind != .home }
+        WidgetSnapshot(recent: recent.map(entry), stations: stations.prefix(3).map(entry)).save()
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetSnapshot.kind)
     }
 }

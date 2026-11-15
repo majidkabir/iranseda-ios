@@ -6,13 +6,22 @@ own bundle identifier in `project.yml`, in `.github/workflows/screenshots.yml` a
 GitHub builds and signs the app, uploads it to Apple, and your iPhone installs it from the TestFlight app.
 This is the same setup as [aula-plus](https://github.com/majidkabir/aula-plus/blob/main/TESTFLIGHT.md), without the widget and App Group.
 
-## 1. Register the App ID (one time)
+## 1. Register the identifiers (one time)
 
 Open https://developer.apple.com/account/resources/identifiers/list.
 
-1. Click the blue **+** → **App IDs** → Continue → **App** → Continue.
+**App Group** (the app and its widget share data through it)
+1. Click the blue **+** → **App Groups** → Continue.
+2. Description: `Seda Plus`, Identifier: `com.majidkabir.iranseda` (the page adds `group.` in front) → Continue → Register.
+
+**App ID for the app**
+1. Click **+** → **App IDs** → Continue → **App** → Continue.
 2. Description: `Seda Plus`, Bundle ID: **Explicit** `com.majidkabir.iranseda`.
-3. No capabilities needed → Continue → Register.
+3. Tick **App Groups** → Continue → Register.
+4. Open the App ID again → next to App Groups click **Configure** → tick the group → Continue → **Save**.
+
+**App ID for the widget**
+Same again with Description `Seda Plus Widget` and Bundle ID `com.majidkabir.iranseda.widget`, with the same App Group.
 
 ## 2. Create the app in App Store Connect (one time)
 
