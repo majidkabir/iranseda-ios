@@ -1,4 +1,5 @@
 import CryptoKit
+import ImageIO
 import UIKit
 
 /// Image cache: memory first, then files in Caches/Images, then the network.
@@ -32,26 +33,39 @@ actor ImageStore {
         if let hit = Self.memory.object(forKey: key) { return hit }
 
         let file = fileURL(for: url)
-        if let data = try? Data(contentsOf: file), let image = UIImage(data: data) {
-            Self.remember(image, key: key, bytes: data.count)
+        if let data = try? Data(contentsOf: file), let image = Self.decode(data) {
+            Self.remember(image, key: key)
             return image
         }
 
         if let running = inflight[url] { return await running.value }
         let task = Task<UIImage?, Never> {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 20
-            guard let (data, response) = try? await URLSession.shared.data(for: request),
-                  (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
-                  let image = UIImage(data: data) else { return nil }
-            try? data.write(to: file, options: .atomic)
-            Self.remember(image, key: key, bytes: data.count)
-            return image
+            for candidate in Self.candidates(for: url) {
+                var request = URLRequest(url: candidate)
+                request.timeoutInterval = 15
+                guard let (data, response) = try? await URLSession.shared.data(for: request),
+                      (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
+                      let image = Self.decode(data) else { continue }
+                try? data.write(to: file, options: .atomic)
+                Self.remember(image, key: key)
+                return image
+            }
+            return nil
         }
         inflight[url] = task
         let image = await task.value
         inflight[url] = nil
         return image
+    }
+
+    /// The service hands out many picture links as plain http, but some of its hosts
+    /// (kids.iranseda.ir, for one) only answer over https. Try https first, then the link as given.
+    private static func candidates(for url: URL) -> [URL] {
+        guard url.scheme == "http", url.port == nil, let host = url.host,
+              host.hasSuffix("iranseda.ir") || host.hasSuffix("radio.ir"),
+              var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return [url] }
+        parts.scheme = "https"
+        return [parts.url, url].compactMap { $0 }
     }
 
     /// Bytes used on disk.
@@ -83,7 +97,25 @@ actor ImageStore {
         return folder.appendingPathComponent(digest.map { String(format: "%02x", $0) }.joined())
     }
 
-    private static func remember(_ image: UIImage, key: NSString, bytes: Int) {
-        memory.setObject(image, forKey: key, cost: bytes)
+    /// Decodes no larger than the app ever shows a picture, so big covers do not eat memory.
+    private static func decode(_ data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            return UIImage(data: data)
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 900,
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: cgImage)
+    }
+
+    private static func remember(_ image: UIImage, key: NSString) {
+        let cost = (image.cgImage.map { $0.bytesPerRow * $0.height }) ?? 1
+        memory.setObject(image, forKey: key, cost: cost)
     }
 }

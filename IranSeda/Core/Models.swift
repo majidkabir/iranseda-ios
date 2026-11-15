@@ -80,10 +80,11 @@ struct HubTab: Decodable, Identifiable {
 struct FeedPage: Decodable {
     @Lossy var ServerTime: String
     @Lossy var Infinity: String     // "true" or "1" when more pages exist (next page: add pn=2, pn=3, ...)
+    @Lossy var containerInfinity: String   // "1" when the containers themselves continue on later pages
     @Lossy var PageTitle: String
     @LossyList var Containers: [FeedContainer]
 
-    var hasMore: Bool { ["true", "1"].contains(Infinity.lowercased()) }
+    var hasMore: Bool { ["true", "1"].contains(Infinity.lowercased()) || containerInfinity == "1" }
 }
 
 struct FeedContainer: Decodable {
@@ -92,7 +93,15 @@ struct FeedContainer: Decodable {
     @Lossy var MoreLink: String
     @Lossy var isHorizontal: String
     @Lossy var isCircle: String
+    @Lossy var kind: String         // "41" = wide banners
     @LossyList var boxes: [FeedBox]
+
+    enum CodingKeys: String, CodingKey {
+        case Title, MoreTitle, MoreLink, isHorizontal, isCircle, boxes
+        case kind = "Type"
+    }
+
+    var isBanner: Bool { kind == "41" }
 }
 
 struct FeedBox: Decodable {
@@ -103,7 +112,14 @@ struct FeedBox: Decodable {
     @Lossy var title: String
     @Lossy var duration: String     // milliseconds
     @LossyList var tags: [Tag]
-    var subtitle: String { tags.map(\.tagvalue).filter { !$0.isEmpty }.joined(separator: " · ") }
+    /// "author" for unnamed tags, "تعداد: ۱۶۲" for named ones.
+    var subtitle: String {
+        tags.compactMap { tag -> String? in
+            if tag.tagvalue.isEmpty { return nil }
+            return tag.tagname.isEmpty ? tag.tagvalue : Format.fa(tag.tagname + " " + tag.tagvalue)
+        }
+        .joined(separator: " · ")
+    }
 }
 
 struct Tag: Decodable {

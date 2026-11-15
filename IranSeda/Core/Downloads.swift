@@ -32,6 +32,11 @@ final class DownloadStore: ObservableObject {
         folder = docs.appendingPathComponent("Downloads", isDirectory: true)
         indexFile = docs.appendingPathComponent("downloads.json")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Downloads can be fetched again; do not fill the user's iCloud backup with them.
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var backupFolder = folder
+        try? backupFolder.setResourceValues(values)
         if Demo.isOn {
             items = Demo.downloads
         } else if let data = try? Data(contentsOf: indexFile),
@@ -91,6 +96,9 @@ final class DownloadStore: ObservableObject {
                 failure = (error as NSError).code == NSURLErrorCancelled ? "" : error.localizedDescription
             } else if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 failure = "سرور پاسخ \(http.statusCode) داد"
+            } else if response?.mimeType?.hasPrefix("text/") == true {
+                // An error page instead of audio.
+                failure = "این فایل برای دانلود در دسترس نیست"
             } else if let temp {
                 do {
                     try? FileManager.default.removeItem(at: target)

@@ -32,6 +32,8 @@ struct Artwork: View {
     let link: String
     var title: String = ""
     var symbol: String = "waveform"
+    /// Called when the picture could not be loaded at all.
+    var onMissing: () -> Void = {}
     @State private var loaded: UIImage?
 
     private var url: URL? { Demo.isOn ? nil : API.resolve(link) }
@@ -61,7 +63,9 @@ struct Artwork: View {
             if let hit = ImageStore.cached(url) { loaded = hit; return }
             loaded = nil
             let fetched = await ImageStore.shared.image(for: url)
-            if !Task.isCancelled { withAnimation(.easeOut(duration: 0.2)) { loaded = fetched } }
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) { loaded = fetched }
+            if fetched == nil { onMissing() }
         }
         .accessibilityHidden(true)
     }
@@ -101,7 +105,7 @@ struct Loader<T, Content: View>: View {
             }
         }
         .task { if value == nil { await run() } }
-        .refreshable { await run() }
+        .refreshable { await API.$wantsFresh.withValue(true) { await run() } }
     }
 
     private func run() async {

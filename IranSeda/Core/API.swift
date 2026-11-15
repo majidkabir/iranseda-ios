@@ -49,18 +49,92 @@ enum API {
         return Data(text.utf8)
     }
 
+    /// No cookies: with a session cookie the server answers one request at a time.
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.timeoutIntervalForRequest = 25
+        return URLSession(configuration: config)
+    }()
+
+    /// Set while the user pulls to refresh: skip the short-lived cache.
+    @TaskLocal static var wantsFresh = false
+
+    /// Links whose answer changes by the minute or carries a stream address: never served from cache.
+    private static func isVolatile(_ link: String) -> Bool {
+        let l = link.lowercased()
+        return ["liveplayer", "playby", "currentprogdata", "programlastepisode", "epgarchivelist"].contains { l.contains($0) }
+    }
+
     static func get<T: Decodable>(_ type: T.Type, _ link: String) async throws -> T {
         if Demo.isOn {
             return try JSONDecoder().decode(T.self, from: sanitize(Demo.data(for: link)))
         }
         guard let url = resolve(link) else { throw Failure.badURL(link) }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 20
-        let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw Failure.http(http.statusCode)
+        let key = url.absoluteString
+        let volatile = isVolatile(link)
+
+        if !volatile, !wantsFresh, let data = await ResponseCache.shared.recent(key),
+           let value = try? JSONDecoder().decode(T.self, from: data) {
+            return value
         }
-        guard !data.isEmpty else { throw Failure.empty }
-        return try JSONDecoder().decode(T.self, from: sanitize(data))
+        do {
+            let (raw, response) = try await session.data(from: url)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw Failure.http(http.statusCode)
+            }
+            guard !raw.isEmpty else { throw Failure.empty }
+            let data = sanitize(raw)
+            let value = try JSONDecoder().decode(T.self, from: data)
+            if !volatile { await ResponseCache.shared.store(data, for: key) }
+            return value
+        } catch {
+            // Offline or the server is down: show the last good answer rather than an error.
+            let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
+            if !cancelled, !volatile, let data = await ResponseCache.shared.any(key),
+               let value = try? JSONDecoder().decode(T.self, from: data) {
+                return value
+            }
+            throw error
+        }
+    }
+}
+
+/// Answers kept for two minutes in memory (so going back and forth is instant) and on disk
+/// as a fallback for when the network fails.
+actor ResponseCache {
+    static let shared = ResponseCache()
+
+    private var memory: [String: (data: Data, at: Date)] = [:]
+    private let folder: URL
+    private let lifetime: TimeInterval = 120
+
+    private init() {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        folder = caches.appendingPathComponent("API", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    }
+
+    func recent(_ key: String) -> Data? {
+        guard let hit = memory[key], Date().timeIntervalSince(hit.at) < lifetime else { return nil }
+        return hit.data
+    }
+
+    func any(_ key: String) -> Data? {
+        memory[key]?.data ?? (try? Data(contentsOf: file(for: key)))
+    }
+
+    func store(_ data: Data, for key: String) {
+        if memory.count > 80 { memory.removeAll() }
+        memory[key] = (data, Date())
+        if data.count < 3_000_000 { try? data.write(to: file(for: key), options: .atomic) }
+    }
+
+    private func file(for key: String) -> URL {
+        let hash = key.unicodeScalars.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1.value)) &* 1099511628211 }
+        return folder.appendingPathComponent(String(hash, radix: 16) + ".json")
     }
 }

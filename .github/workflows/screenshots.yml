@@ -68,6 +68,37 @@ jobs:
           xcrun simctl ui "$UDID" content_size accessibility-large
           for screen in home radio detail player search; do shoot "$screen" "xl-$screen"; done
           ls -la shots
+      - name: Capture with the real service
+        continue-on-error: true
+        run: |
+          UDID=${{ steps.sim.outputs.udid }}
+          BUNDLE=com.majidkabir.iranseda
+          mkdir -p real
+          xcrun simctl ui "$UDID" content_size large
+          real() {
+            xcrun simctl terminate "$UDID" $BUNDLE 2>/dev/null || true
+            xcrun simctl launch "$UDID" $BUNDLE -screen "$1" ${3:+-query "$3"}
+            sleep "$2"
+            xcrun simctl io "$UDID" screenshot "real/$1.png"
+          }
+          real home 20
+          real radio 15
+          real channel 15
+          real hub 20
+          real detail 15
+          real search 75 "بهروز رضوی"
+          for f in real/*.png; do sips -Z 1100 "$f" >/dev/null; done
+      - name: Publish real-service pictures to the real-shots branch
+        continue-on-error: true
+        run: |
+          mkdir /tmp/real && cp real/*.png /tmp/real/
+          cd /tmp/real
+          git init -q -b real-shots
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "$GITHUB_SHA" > SOURCE
+          git add -A && git commit -qm "Real-service screenshots for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" real-shots
       - name: Publish to screenshots branch
         run: |
           for f in shots/*.png; do sips -Z 1100 "$f" >/dev/null; done

@@ -123,7 +123,7 @@ private struct StationBubble: View {
 private struct HubTile: View {
     let hub: Hub
 
-    private var symbol: String {
+    private var symbol: String? {
         switch hub.Id {
         case "1021": return "book.fill"
         case "1027": return "mic.fill"
@@ -133,17 +133,24 @@ private struct HubTile: View {
         case "1024": return "person.wave.2.fill"
         case "1025": return "moon.stars.fill"
         case "1029": return "clock.arrow.circlepath"
-        default: return "square.stack.fill"
+        default: return nil
         }
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.title3)
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Theme.gradient(for: hub.title), in: RoundedRectangle(cornerRadius: 12))
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.gradient(for: hub.title), in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                // Hubs the app has no symbol for (station sites and the like) show the service's own logo.
+                Artwork(link: hub.LogoImage, title: hub.title, symbol: "square.stack.fill")
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
             Text(hub.title).font(.body.weight(.medium)).lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -181,6 +188,7 @@ struct HubView: View {
         let current = tabs.first { $0.id == selected } ?? tabs.first
         VStack(spacing: 0) {
             if tabs.count > 1 {
+                ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(tabs) { tab in
@@ -188,6 +196,7 @@ struct HubView: View {
                             Button {
                                 Haptics.tap()
                                 selected = tab.id
+                                withAnimation(.snappy) { proxy.scrollTo(tab.id, anchor: .center) }
                             } label: {
                                 Text(tab.Title)
                                     .font(.subheadline.weight(on ? .semibold : .regular))
@@ -198,11 +207,17 @@ struct HubView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(on ? .isSelected : [])
+                            .id(tab.id)
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
                     .padding(.vertical, 8)
                 }
+                // A long right-to-left row can open scrolled to its far end; start at the selected tab.
+                .onAppear { if let id = current?.id { proxy.scrollTo(id, anchor: .center) } }
+                }
+                .background(.bar)
+                Divider()
             }
             if let current {
                 FeedView(url: current.FeedAddress).id(current.id)
@@ -321,8 +336,18 @@ private struct FeedContent: View {
 private struct ContainerView: View {
     let container: FeedContainer
     var asList = false
+    @State private var missing: Set<Int> = []
 
     var body: some View {
+        // Banners carry no title, so one whose picture is broken on the server has nothing to show.
+        if container.isBanner && missing.count >= container.boxes.count {
+            EmptyView()
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !container.Title.isEmpty {
                 SectionHeader(title: container.Title,
@@ -333,8 +358,14 @@ private struct ContainerView: View {
             if container.isHorizontal == "1" && !asList {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 12) {
-                        ForEach(Array(container.boxes.enumerated()), id: \.offset) { _, box in
-                            BoxLink(box: box) { BoxCard(box: box, circle: container.isCircle == "1") }
+                        ForEach(Array(container.boxes.enumerated()), id: \.offset) { index, box in
+                            if !(container.isBanner && missing.contains(index)) {
+                                BoxLink(box: box) {
+                                    BoxCard(box: box, circle: container.isCircle == "1", banner: container.isBanner) {
+                                        if container.isBanner { missing.insert(index) }
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
@@ -370,12 +401,15 @@ private struct BoxLink<Label: View>: View {
 private struct BoxCard: View {
     let box: FeedBox
     let circle: Bool
+    var banner = false
+    var onMissingPicture: () -> Void = {}
 
     var body: some View {
-        let size: CGFloat = circle ? 96 : 132
+        let size: CGFloat = banner ? 288 : (circle ? 96 : 132)
         VStack(alignment: circle ? .center : .leading, spacing: 6) {
-            Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "7" ? "square.stack.fill" : "headphones"))
-                .frame(width: size, height: size)
+            Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "9" ? "headphones" : "square.stack.fill"),
+                    onMissing: onMissingPicture)
+                .frame(width: size, height: banner ? 150 : size)
                 .clipShape(circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Theme.corner)))
             if !box.title.isEmpty {
                 Text(box.title)

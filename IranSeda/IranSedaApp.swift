@@ -31,7 +31,7 @@ struct RootView: View {
 
     init() {
         let start: Int
-        switch Demo.isOn ? Demo.screen : "home" {
+        switch Demo.screen {
         case "radio": start = 1
         case "library", "downloads", "recents": start = 2
         case "settings": start = 3
@@ -61,10 +61,12 @@ struct RootView: View {
         }
         .task { await prepareDemo() }
         .onOpenURL { url in open(url) }
-        .alert("پخش نشد", isPresented: Binding(get: { linkFailure != nil }, set: { if !$0 { linkFailure = nil } })) {
+        .alert("پخش نشد", isPresented: Binding(
+            get: { linkFailure != nil || player.failure != nil },
+            set: { if !$0 { linkFailure = nil; player.failure = nil } })) {
             Button("باشه", role: .cancel) {}
         } message: {
-            Text(linkFailure ?? "")
+            Text(linkFailure ?? player.failure ?? "")
         }
     }
 
@@ -95,16 +97,15 @@ struct RootView: View {
             .animation(.snappy, value: player.album != nil)
     }
 
-    /// Deep screens for screenshots (`-demo YES -screen channel`, ...).
+    /// Deep screens chosen by launch argument (`-screen channel`), with or without `-demo YES`.
     private var demoRoot: AnyView? {
-        guard Demo.isOn else { return nil }
         switch Demo.screen {
         case "channel": return AnyView(ChannelLoader(id: "12"))
         case "hub": return AnyView(HubLoader())
-        case "detail": return AnyView(DetailView(url: "/book/Details/?g=1"))
+        case "detail": return AnyView(DetailView(url: Demo.isOn ? "/book/Details/?g=1" : "/book/Details/?VALID=TRUE&g=730197"))
         case "serial": return AnyView(HomeInfoView(url: "/book/serialhome/?p=1", title: "قصه‌های جزیره"))
         case "episodes": return AnyView(EpisodesView(url: "/radio/programArchiveList/?ch=12", title: "قسمت‌ها"))
-        case "search": return AnyView(SearchView(initialQuery: "رادیو"))
+        case "search": return AnyView(SearchView(initialQuery: UserDefaults.standard.string(forKey: "query") ?? "رادیو"))
         default: return nil
         }
     }
