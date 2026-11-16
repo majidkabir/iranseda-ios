@@ -232,3 +232,38 @@ struct FavoriteButton: View {
         .accessibilityLabel(on ? "حذف از علاقه‌مندی‌ها" : "افزودن به علاقه‌مندی‌ها")
     }
 }
+
+/// A small "راوی: …" line for a list item. The name comes from the item's own page, looked up
+/// in the background the first time the item is on screen.
+struct VoiceLine: View {
+    let urlType: String
+    let link: String
+    /// Keep the line's height while the name is unknown, so a shelf does not jump when it arrives.
+    var reserveSpace = false
+    @State private var text: String?
+
+    var body: some View {
+        if CreditStore.applies(urlType: urlType, link: link) {
+            let shown = text ?? CreditStore.cachedVoiceLine(link) ?? ""
+            Group {
+                if !shown.isEmpty {
+                    Text(shown)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .transition(.opacity)
+                } else if reserveSpace {
+                    Text(" ").font(.caption2).accessibilityHidden(true)
+                }
+            }
+            .task(id: link) {
+                if let hit = CreditStore.cachedVoiceLine(link) { text = hit; return }
+                // Rows that are only scrolled past do not need a lookup.
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if Task.isCancelled { return }
+                let found = await CreditStore.shared.voiceLine(for: link)
+                if !Task.isCancelled { withAnimation(.easeOut(duration: 0.2)) { text = found } }
+            }
+        }
+    }
+}

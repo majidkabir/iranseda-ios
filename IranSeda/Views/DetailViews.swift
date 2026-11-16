@@ -9,7 +9,11 @@ struct DetailView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        Loader(load: { try await API.get(PlayerDetail.self, url) }) { detail in
+        Loader(load: {
+            let detail = try await API.get(PlayerDetail.self, url)
+            await CreditStore.shared.learn(detail, link: url)
+            return detail
+        }) { detail in
             let saved = SavedItem(kind: .detail, url: url, title: detail.displayTitle, subtitle: detail.chTitle, image: detail.cover)
             let downloadable = detail.items.filter { downloads.canDownload($0) && !downloads.isDownloaded($0) }
             List {
@@ -21,9 +25,12 @@ struct DetailView: View {
                             .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
                         VStack(spacing: 4) {
                             Text(detail.displayTitle).font(.title2.bold()).multilineTextAlignment(.center)
-                            let byline = detail.mainTags.prefix(2).map(\.tagvalue).filter { !$0.isEmpty }.joined(separator: " · ")
-                            if !byline.isEmpty {
-                                Text(byline).font(.subheadline).foregroundStyle(.secondary)
+                            // Author, narrator, translator: each on its own small labelled line.
+                            ForEach(detail.creditLines, id: \.self) { line in
+                                Text(line)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
                             }
                         }
                         let row = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
