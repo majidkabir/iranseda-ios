@@ -471,6 +471,10 @@ private struct BoxCard: View {
             if !box.subtitle.isEmpty {
                 Text(box.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
+            if !circle && !banner {
+                VoiceLine(urlType: box.URLType, link: box.URL, reserveSpace: true)
+                    .padding(.top, -3)
+            }
         }
         .frame(width: size, alignment: circle ? .center : .leading)
         .accessibilityElement(children: .combine)
@@ -491,6 +495,7 @@ private struct BoxRow: View {
                 if !meta.isEmpty {
                     Text(meta).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
+                VoiceLine(urlType: box.URLType, link: box.URL)
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.forward").font(.caption.bold()).foregroundStyle(.tertiary)

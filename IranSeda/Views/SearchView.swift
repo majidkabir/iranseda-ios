@@ -133,7 +133,8 @@ struct SearchView: View {
                                 NavigationLink {
                                     LinkDestination(urlType: box.URLType, url: box.URL, title: box.title)
                                 } label: {
-                                    row(image: box.image, title: box.title, subtitle: box.subtitle, symbol: "headphones")
+                                    row(image: box.image, title: box.title, subtitle: box.subtitle, symbol: "headphones",
+                                        urlType: box.URLType, link: box.URL)
                                 }
                             }
                             if hub.boxes.count > preview || hub.hasMore {
@@ -183,7 +184,8 @@ struct SearchView: View {
         model.search(text)
     }
 
-    private func row(image: String, title: String, subtitle: String, symbol: String) -> some View {
+    private func row(image: String, title: String, subtitle: String, symbol: String,
+                     urlType: String = "", link: String = "") -> some View {
         HStack(spacing: 12) {
             Artwork(link: image, title: title, symbol: symbol)
                 .frame(width: 48, height: 48)
@@ -193,6 +195,7 @@ struct SearchView: View {
                 if !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
+                VoiceLine(urlType: urlType, link: link)
             }
         }
     }
