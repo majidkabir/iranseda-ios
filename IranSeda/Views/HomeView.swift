@@ -279,6 +279,7 @@ private struct FeedContent: View {
     @State private var loadFailed = false
     @State private var isLoading = false
     @State private var spinnerVisible = false
+    @State private var bannerReady: [Int: Set<Int>] = [:]
     @State private var seen: Set<String>
 
     init(url: String, first: FeedPage, asList: Bool, header: AnyView?) {
@@ -301,8 +302,15 @@ private struct FeedContent: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 60)
                 }
-                ForEach(Array(containers.enumerated()), id: \.offset) { _, container in
-                    ContainerView(container: container, asList: asList)
+                ForEach(Array(containers.enumerated()), id: \.offset) { index, container in
+                    if !container.isBanner {
+                        ContainerView(container: container, asList: asList)
+                    } else if let ready = bannerReady[index], !ready.isEmpty {
+                        // A banner is only a picture. It joins the page once that picture has loaded,
+                        // so a broken one never flashes an empty tile first.
+                        ContainerView(container: container, asList: asList, only: ready)
+                            .transition(.opacity)
+                    }
                 }
                 if hasMore {
                     if loadFailed {
@@ -327,6 +335,21 @@ private struct FeedContent: View {
                 }
             }
             .padding(.vertical, 12)
+        }
+        .task(id: containers.count) { await preloadBanners() }
+    }
+
+    /// Fetches banner pictures before their shelves are shown.
+    private func preloadBanners() async {
+        guard !Demo.isOn else { return }
+        for (index, container) in containers.enumerated() where container.isBanner && bannerReady[index] == nil {
+            var ready = Set<Int>()
+            for (position, box) in container.boxes.enumerated() {
+                guard let url = API.resolve(box.image) else { continue }
+                if await ImageStore.shared.image(for: url) != nil { ready.insert(position) }
+                if Task.isCancelled { return }
+            }
+            withAnimation(.easeOut(duration: 0.25)) { bannerReady[index] = ready }
         }
     }
 
@@ -376,18 +399,10 @@ private struct FeedContent: View {
 private struct ContainerView: View {
     let container: FeedContainer
     var asList = false
-    @State private var missing: Set<Int> = []
+    /// For banner shelves: the boxes whose picture is known to load. Nil shows every box.
+    var only: Set<Int>?
 
     var body: some View {
-        // Banners carry no title, so one whose picture is broken on the server has nothing to show.
-        if container.isBanner && missing.count >= container.boxes.count {
-            EmptyView()
-        } else {
-            content
-        }
-    }
-
-    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !container.Title.isEmpty {
                 SectionHeader(title: container.Title,
@@ -399,11 +414,9 @@ private struct ContainerView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 12) {
                         ForEach(Array(container.boxes.enumerated()), id: \.offset) { index, box in
-                            if !(container.isBanner && missing.contains(index)) {
+                            if only?.contains(index) ?? true {
                                 BoxLink(box: box) {
-                                    BoxCard(box: box, circle: container.isCircle == "1", banner: container.isBanner) {
-                                        if container.isBanner { missing.insert(index) }
-                                    }
+                                    BoxCard(box: box, circle: container.isCircle == "1", banner: container.isBanner)
                                 }
                             }
                         }
@@ -442,13 +455,11 @@ private struct BoxCard: View {
     let box: FeedBox
     let circle: Bool
     var banner = false
-    var onMissingPicture: () -> Void = {}
 
     var body: some View {
         let size: CGFloat = banner ? 288 : (circle ? 96 : 132)
         VStack(alignment: circle ? .center : .leading, spacing: 6) {
-            Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "9" ? "headphones" : "square.stack.fill"),
-                    onMissing: onMissingPicture)
+            Artwork(link: box.image, title: box.title, symbol: circle ? "person.fill" : (box.URLType == "9" ? "headphones" : "square.stack.fill"))
                 .frame(width: size, height: banner ? 150 : size)
                 .clipShape(circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Theme.corner)))
             if !box.title.isEmpty {

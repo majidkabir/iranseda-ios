@@ -16,6 +16,7 @@ actor ImageStore {
 
     private let folder: URL
     private var inflight: [URL: Task<UIImage?, Never>] = [:]
+    private var failed: Set<URL> = []
     private static let maxAge: TimeInterval = 30 * 24 * 3600
 
     private init() {
@@ -38,6 +39,7 @@ actor ImageStore {
             return image
         }
 
+        if failed.contains(url) { return nil }
         if let running = inflight[url] { return await running.value }
         let task = Task<UIImage?, Never> {
             for candidate in Self.candidates(for: url) {
@@ -55,6 +57,8 @@ actor ImageStore {
         inflight[url] = task
         let image = await task.value
         inflight[url] = nil
+        // A broken link stays broken for this run of the app; do not ask again on every scroll.
+        if image == nil, !Task.isCancelled { failed.insert(url) }
         return image
     }
 
@@ -76,6 +80,7 @@ actor ImageStore {
 
     func clear() {
         Self.memory.removeAllObjects()
+        failed.removeAll()
         try? FileManager.default.removeItem(at: folder)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     }
