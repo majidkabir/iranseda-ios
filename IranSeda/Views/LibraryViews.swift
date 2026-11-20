@@ -49,6 +49,7 @@ struct LibraryView: View {
             List {
                 ForEach(library.favorites) { SavedRow(item: $0) }
                     .onDelete { library.removeFavorites(at: $0) }
+                    .onMove { library.moveFavorites(from: $0, to: $1) }
             }
             .listStyle(.plain)
         }
