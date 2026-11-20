@@ -64,6 +64,12 @@ final class Library: ObservableObject {
         save()
     }
 
+    /// Hand-arranged order; the widget shows favourite stations in this order too.
+    func moveFavorites(from offsets: IndexSet, to destination: Int) {
+        favorites.move(fromOffsets: offsets, toOffset: destination)
+        save()
+    }
+
     func addRecent(_ item: SavedItem) {
         recents.removeAll { $0.id == item.id }
         recents.insert(item, at: 0)

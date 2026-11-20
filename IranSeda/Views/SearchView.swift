@@ -136,6 +136,7 @@ struct SearchView: View {
                                     row(image: box.image, title: box.title, subtitle: box.subtitle, symbol: "headphones",
                                         urlType: box.URLType, link: box.URL)
                                 }
+                                .favoriteSwipe(box)
                             }
                             if hub.boxes.count > preview || hub.hasMore {
                                 NavigationLink {

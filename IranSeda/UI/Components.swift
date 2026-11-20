@@ -267,3 +267,51 @@ struct VoiceLine: View {
         }
     }
 }
+
+extension FeedBox {
+    /// The favourite this box stands for, when it is a book/episode page or a series home.
+    var saved: SavedItem? {
+        guard !URL.isEmpty else { return nil }
+        switch URLType {
+        case "9": return SavedItem(kind: .detail, url: URL, title: title, subtitle: subtitle, image: image)
+        case "7": return SavedItem(kind: .home, url: URL, title: title, subtitle: subtitle, image: image)
+        default: return nil
+        }
+    }
+}
+
+/// Swipe a row to add it to favourites, or to take it out again.
+private struct FavoriteSwipe: ViewModifier {
+    let box: FeedBox
+    @EnvironmentObject private var library: Library
+
+    func body(content: Content) -> some View {
+        if let item = box.saved {
+            let on = library.isFavorite(item)
+            content.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    Haptics.tap()
+                    library.toggleFavorite(item)
+                } label: {
+                    Label(on ? "حذف از علاقه‌مندی‌ها" : "علاقه‌مندی", systemImage: on ? "heart.slash" : "heart")
+                }
+                .tint(on ? .gray : .red)
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func favoriteSwipe(_ box: FeedBox) -> some View { modifier(FavoriteSwipe(box: box)) }
+
+    /// Rows in a plain scroll view only answer swipes from iOS 27 on; lists always do.
+    @ViewBuilder func swipeHost() -> some View {
+        if #available(iOS 27, *) {
+            swipeActionsContainer()
+        } else {
+            self
+        }
+    }
+}

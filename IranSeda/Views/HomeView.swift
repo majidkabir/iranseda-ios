@@ -336,6 +336,7 @@ private struct FeedContent: View {
             }
             .padding(.vertical, 12)
         }
+        .swipeHost()
         .task(id: containers.count) { await preloadBanners() }
     }
 
@@ -427,6 +428,7 @@ private struct ContainerView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(container.boxes.enumerated()), id: \.offset) { index, box in
                         BoxLink(box: box) { BoxRow(box: box) }
+                            .favoriteSwipe(box)
                         if index < container.boxes.count - 1 { Divider().padding(.leading, 76) }
                     }
                 }
