@@ -63,7 +63,8 @@ final class SearchModel: ObservableObject {
                 guard let index = hubs.firstIndex(where: { $0.id == hub.id }) else { continue }
                 hubs[index].isLoading = false
                 if let page {
-                    hubs[index].boxes = page.Containers.flatMap(\.boxes).filter { !$0.URL.isEmpty }
+                    var seen = Set<String>()
+                    hubs[index].boxes = page.Containers.flatMap(\.boxes).filter { !$0.URL.isEmpty && seen.insert($0.URL).inserted }
                     hubs[index].hasMore = page.hasMore
                 } else {
                     hubs[index].failed = true

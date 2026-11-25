@@ -91,6 +91,31 @@ struct SavedCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Artwork(link: item.image, title: item.title, symbol: item.kind == .channel ? "dot.radiowaves.left.and.right" : "headphones")
                     .frame(width: 132, height: 132)
+                    .overlay(alignment: .bottom) {
+                        // How far into this book you are, like the bar on a paused video.
+                        if let done = Player.progress(for: item) {
+                            if done >= 0.99 {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.white, Color.accentColor)
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                    .padding(8)
+                                    .accessibilityLabel("تمام شده")
+                            } else {
+                                Capsule()
+                                    .fill(.white.opacity(0.35))
+                                    .frame(height: 4)
+                                    .overlay(alignment: .leading) {
+                                        GeometryReader { g in
+                                            Capsule().fill(.white).frame(width: max(4, g.size.width * done))
+                                        }
+                                    }
+                                    .environment(\.layoutDirection, .leftToRight)
+                                    .padding(10)
+                                    .accessibilityLabel("\(Format.fa(Int(done * 100))) درصد شنیده شده")
+                            }
+                        }
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
                 Text(item.title).font(.subheadline.weight(.medium)).lineLimit(1)
                 Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -103,13 +128,30 @@ struct SavedCard: View {
 
 private struct StationBubble: View {
     let channel: Channel
+    @EnvironmentObject private var player: Player
 
     var body: some View {
+        let on = player.isOn(channel: channel.id)
         VStack(spacing: 8) {
             Artwork(link: channel.logo, title: channel.title, symbol: "dot.radiowaves.left.and.right")
                 .frame(width: 72, height: 72)
                 .clipShape(Circle())
                 .overlay(Circle().strokeBorder(.quaternary))
+                .padding(on ? 4 : 0)
+                .overlay {
+                    if on { Circle().strokeBorder(Color.accentColor, lineWidth: 3) }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if on {
+                        Image(systemName: "waveform")
+                            .font(.caption2.weight(.bold))
+                            .symbolEffect(.variableColor.iterative, isActive: player.isPlaying)
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Color.accentColor, in: Circle())
+                    }
+                }
+                .frame(width: 80, height: 80)
             Text(channel.title.replacingOccurrences(of: "رادیو ", with: ""))
                 .font(.caption.weight(.medium))
                 .lineLimit(1)

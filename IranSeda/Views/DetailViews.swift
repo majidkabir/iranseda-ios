@@ -144,9 +144,23 @@ private struct TrackRow: View {
                             .font(.body.weight(isCurrent ? .semibold : .regular))
                             .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
                             .lineLimit(2)
-                        Text(Format.duration(ms: track.duration))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        let total = (Double(track.duration) ?? 0) / 1000
+                        if !isCurrent, total > 0, let heard = player.resumePosition(for: track), heard > 5 {
+                            // Started earlier: show what is left, with a thin bar.
+                            HStack(spacing: 6) {
+                                ProgressView(value: min(heard / total, 1))
+                                    .tint(.accentColor)
+                                    .frame(width: 44)
+                                    .environment(\.layoutDirection, .leftToRight)
+                                Text(Format.clock(max(total - heard, 0)) + " مانده")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text(Format.duration(ms: track.duration))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
