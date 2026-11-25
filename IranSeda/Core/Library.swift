@@ -22,6 +22,7 @@ struct SavedItem: Codable, Identifiable, Hashable {
 }
 
 /// Favourites and listening history, kept in Application Support.
+/// Favourites are also kept in iCloud, so the iPhone and the watch share them.
 @MainActor
 final class Library: ObservableObject {
     static let shared = Library()
@@ -46,6 +47,7 @@ final class Library: ObservableObject {
             favorites = stored.favorites
             recents = stored.recents
         }
+        startCloudSync()
     }
 
     func isFavorite(_ item: SavedItem) -> Bool { favorites.contains { $0.id == item.id } }
@@ -57,17 +59,20 @@ final class Library: ObservableObject {
             favorites.insert(item, at: 0)
         }
         save()
+        pushFavoritesToCloud()
     }
 
     func removeFavorites(at offsets: IndexSet) {
         favorites.remove(atOffsets: offsets)
         save()
+        pushFavoritesToCloud()
     }
 
     /// Hand-arranged order; the widget shows favourite stations in this order too.
     func moveFavorites(from offsets: IndexSet, to destination: Int) {
         favorites.move(fromOffsets: offsets, toOffset: destination)
         save()
+        pushFavoritesToCloud()
     }
 
     func addRecent(_ item: SavedItem) {
@@ -85,6 +90,53 @@ final class Library: ObservableObject {
     /// Any favourite or recent item by its id; used by widget deep links.
     func item(withID id: String) -> SavedItem? {
         favorites.first { $0.id == id } ?? recents.first { $0.id == id }
+    }
+
+    // MARK: iCloud
+
+    private static let cloudKey = "favorites.v1"
+    private static let joinedKey = "favorites.joinedCloud"
+    private var cloudObserver: NSObjectProtocol?
+
+    private func startCloudSync() {
+        guard !Demo.isOn else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        cloudObserver = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification, object: cloud, queue: .main
+        ) { [weak self] note in
+            let keys = note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
+            guard keys.contains(Self.cloudKey) else { return }
+            Task { @MainActor in self?.pullFavoritesFromCloud() }
+        }
+        cloud.synchronize()
+        pullFavoritesFromCloud()
+    }
+
+    /// The first time on a device its own favourites are added to the shared list;
+    /// after that the shared list is the truth, so a removal on one device removes everywhere.
+    private func pullFavoritesFromCloud() {
+        let defaults = UserDefaults.standard
+        let joined = defaults.bool(forKey: Self.joinedKey)
+        guard let data = NSUbiquitousKeyValueStore.default.data(forKey: Self.cloudKey),
+              let remote = try? JSONDecoder().decode([SavedItem].self, from: data) else {
+            if !joined, !favorites.isEmpty { pushFavoritesToCloud() }
+            return
+        }
+        let merged = joined ? remote : remote + favorites.filter { mine in !remote.contains { $0.id == mine.id } }
+        defaults.set(true, forKey: Self.joinedKey)
+        if merged != favorites {
+            favorites = merged
+            save()
+        }
+        if merged != remote { pushFavoritesToCloud() }
+    }
+
+    private func pushFavoritesToCloud() {
+        guard !Demo.isOn, let data = try? JSONEncoder().encode(favorites) else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        cloud.set(data, forKey: Self.cloudKey)
+        cloud.synchronize()
+        UserDefaults.standard.set(true, forKey: Self.joinedKey)
     }
 
     private func save() {
