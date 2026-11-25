@@ -63,16 +63,34 @@ private struct StationRow: View {
                     }
                 }
                 Spacer(minLength: 0)
-                AsyncButton {
-                    try await Playback.playLive(channel)
-                } label: {
-                    Image(systemName: "play.circle.fill")
-                        .font(.title)
-                        .symbolRenderingMode(.hierarchical)
-                        .frame(width: 44, height: 44)
+                if player.isOn(channel: channel.id) {
+                    // This station is on: show it, and let the same button pause and resume.
+                    Button {
+                        Haptics.tap()
+                        player.toggle()
+                    } label: {
+                        Image(systemName: player.isPlaying ? "waveform" : "play.fill")
+                            .font(.body.weight(.semibold))
+                            .symbolEffect(.variableColor.iterative, isActive: player.isPlaying)
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.accentColor, in: Circle())
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(player.isPlaying ? "توقف \(channel.title)" : "ادامه \(channel.title)")
+                } else {
+                    AsyncButton {
+                        try await Playback.playLive(channel)
+                    } label: {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title)
+                            .symbolRenderingMode(.hierarchical)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("پخش زنده \(channel.title)")
                 }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("پخش زنده \(channel.title)")
             }
         }
     }

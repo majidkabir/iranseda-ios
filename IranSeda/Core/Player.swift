@@ -10,6 +10,8 @@ final class Player: ObservableObject {
     static let speeds: [Float] = [0.75, 1, 1.25, 1.5, 2]
 
     @Published private(set) var album: PlayerDetail?
+    /// What was opened to start this playback (a book, a station…), for "now playing" marks in lists.
+    @Published private(set) var source: SavedItem?
     @Published private(set) var index = 0
     @Published private(set) var isPlaying = false
     @Published private(set) var position: Double = 0
@@ -97,6 +99,7 @@ final class Player: ObservableObject {
         saveResume()
         position = 0
         album = detail
+        self.source = source
         artwork = nil
         loadArtwork(detail.cover)
         if let source { Library.shared.addRecent(source) }
@@ -186,6 +189,7 @@ final class Player: ObservableObject {
         isBuffering = false
         itemObservation = nil
         album = nil
+        source = nil
         sleep(afterMinutes: nil)
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
@@ -203,7 +207,13 @@ final class Player: ObservableObject {
         if let track { UserDefaults.standard.removeObject(forKey: resumeKey(track)) }
         lastSaved = 0
         position = 0
-        if hasNext { start(index: index + 1) } else { isPlaying = false; updateNowPlaying() }
+        if hasNext {
+            start(index: index + 1)
+        } else {
+            if let source, !isLive, !Demo.isOn { UserDefaults.standard.set(1.0, forKey: Self.progressKey(source)) }
+            isPlaying = false
+            updateNowPlaying()
+        }
     }
 
     private func interrupted(typeValue: UInt?, optionValue: UInt) {
@@ -241,6 +251,7 @@ final class Player: ObservableObject {
     }
 
     func resumePosition(for track: Track) -> Double? {
+        if Demo.isOn { return track.FileID == "demo1" ? (Double(track.duration) ?? 0) / 1000 * 0.4 : nil }
         let v = UserDefaults.standard.double(forKey: resumeKey(track))
         return v > 0 ? v : nil
     }
@@ -249,6 +260,25 @@ final class Player: ObservableObject {
         guard let track, !isLive, position > 0, !Demo.isOn else { return }
         UserDefaults.standard.set(position, forKey: resumeKey(track))
         lastSaved = position
+        if let source, let album, duration > 0, !album.items.isEmpty {
+            let done = (Double(index) + min(position / duration, 1)) / Double(album.items.count)
+            UserDefaults.standard.set(done, forKey: Self.progressKey(source))
+        }
+    }
+
+    private static func progressKey(_ item: SavedItem) -> String { "resume.progress." + item.id }
+
+    /// How much of a book or episode has been heard, 0…1, or nil if never started.
+    static func progress(for item: SavedItem) -> Double? {
+        guard item.kind == .detail || item.kind == .play else { return nil }
+        if Demo.isOn { return item.title.count % 3 == 0 ? nil : Double(item.title.count % 7 + 2) / 10 }
+        let v = UserDefaults.standard.double(forKey: progressKey(item))
+        return v > 0 ? v : nil
+    }
+
+    /// True when this station's live stream is the thing loaded in the player.
+    func isOn(channel id: String) -> Bool {
+        album != nil && source?.kind == .channel && source?.ref == id
     }
 
     static func clearResumePositions() {
