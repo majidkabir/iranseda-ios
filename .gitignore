@@ -7,3 +7,4 @@ build/
 *.ipa
 IranSedaWidget/Info.plist
 *.entitlements
+IranSedaWatch/Info.plist

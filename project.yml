@@ -24,6 +24,8 @@ targets:
       path: IranSeda/IranSeda.entitlements
       properties:
         com.apple.security.application-groups: [group.com.majidkabir.iranseda]
+        # One iCloud key-value store for the iPhone and the watch: shared favourites.
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.majidkabir.iranseda
     info:
       path: IranSeda/Info.plist
       properties:
@@ -95,6 +97,10 @@ targets:
         excludes: [CarPlay.swift]
       - path: IranSeda/UI/Common.swift
       - Shared
+    entitlements:
+      path: IranSedaWatch/IranSedaWatch.entitlements
+      properties:
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.majidkabir.iranseda
     info:
       path: IranSedaWatch/Info.plist
       properties:
