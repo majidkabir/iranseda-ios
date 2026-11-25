@@ -109,3 +109,15 @@ final class Library: ObservableObject {
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetSnapshot.kind)
     }
 }
+
+extension FeedBox {
+    /// The favourite this box stands for, when it is a book/episode page or a series home.
+    var saved: SavedItem? {
+        guard !URL.isEmpty else { return nil }
+        switch URLType {
+        case "9": return SavedItem(kind: .detail, url: URL, title: title, subtitle: subtitle, image: image)
+        case "7": return SavedItem(kind: .home, url: URL, title: title, subtitle: subtitle, image: image)
+        default: return nil
+        }
+    }
+}

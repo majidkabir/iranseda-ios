@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.majidkabir
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -18,6 +19,7 @@ targets:
       - Shared
     dependencies:
       - target: IranSedaWidget
+      - target: IranSedaWatch
     entitlements:
       path: IranSeda/IranSeda.entitlements
       properties:
@@ -83,8 +85,43 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+  # Apple Watch app. It ships inside the iPhone app but runs on its own (no iPhone needed).
+  IranSedaWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - IranSedaWatch
+      - path: IranSeda/Core
+        excludes: [CarPlay.swift]
+      - path: IranSeda/UI/Common.swift
+      - Shared
+    info:
+      path: IranSedaWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Seda+
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.majidkabir.iranseda
+        WKRunsIndependentlyOfCompanionApp: true
+        UIBackgroundModes: [audio]
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.majidkabir.iranseda.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "4"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
 schemes:
   IranSeda:
     build:
       targets:
         IranSeda: all
+  IranSedaWatch:
+    build:
+      targets:
+        IranSedaWatch: all

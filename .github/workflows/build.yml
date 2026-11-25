@@ -24,8 +24,17 @@ jobs:
           xcodebuild build \
             -project IranSeda.xcodeproj \
             -scheme IranSeda \
-            -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log | grep -E "error:|\*\* BUILD" || true
           grep -q "\*\* BUILD SUCCEEDED \*\*" build.log
+      - name: Build for watchOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project IranSeda.xcodeproj \
+            -scheme IranSedaWatch \
+            -destination 'generic/platform=watchOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee watch.log | grep -E "error:|\*\* BUILD" || true
+          grep -q "\*\* BUILD SUCCEEDED \*\*" watch.log

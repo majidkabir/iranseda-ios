@@ -111,3 +111,65 @@ jobs:
           echo "$GITHUB_SHA" > SOURCE
           git add -A && git commit -qm "Screenshots for $SHA"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
+
+  watch:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen && xcodegen generate
+      - name: Pick and boot watch simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in sorted(d.items(),reverse=True) if 'watchOS' in k for x in v]
+          big=[x for x in c if '46mm' in x['name'] or '45mm' in x['name']]
+          print((big or c)[0]['udid'])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 || true
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build -project IranSeda.xcodeproj -scheme IranSedaWatch \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO | tee build.log | grep -E "error:|\*\* BUILD" || true
+          test -d build/Build/Products/Debug-watchsimulator/IranSedaWatch.app
+      - name: Capture
+        env:
+          SCREENS: home radio channel hubs hub detail serial search player playerlive library recents downloads settings
+        run: |
+          UDID=${{ steps.sim.outputs.udid }}
+          BUNDLE=com.majidkabir.iranseda.watchkitapp
+          xcrun simctl install "$UDID" build/Build/Products/Debug-watchsimulator/IranSedaWatch.app
+          mkdir -p shots
+          shoot() {
+            xcrun simctl terminate "$UDID" $BUNDLE 2>/dev/null || true
+            xcrun simctl launch "$UDID" $BUNDLE "$@"
+            sleep 8
+          }
+          for screen in $SCREENS; do
+            shoot -demo YES -screen "$screen"
+            xcrun simctl io "$UDID" screenshot "shots/watch-$screen.png"
+          done
+          # The real service, as a listener sees it.
+          for screen in radio hubs detail; do
+            shoot -screen "$screen"
+            sleep 12
+            xcrun simctl io "$UDID" screenshot "shots/real-$screen.png"
+          done
+          ls -la shots
+      - name: Publish to watch-shots branch
+        run: |
+          SHA=${GITHUB_SHA::7}
+          mkdir /tmp/pub && cp shots/*.png /tmp/pub/
+          cd /tmp/pub
+          git init -q -b watch-shots
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "$GITHUB_SHA" > SOURCE
+          git add -A && git commit -qm "Watch screenshots for $SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" watch-shots
