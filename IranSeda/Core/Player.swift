@@ -29,8 +29,19 @@ final class Player: ObservableObject {
     private var itemObservation: NSKeyValueObservation?
     private var observers: [NSObjectProtocol] = []
     private var sleepTask: Task<Void, Never>?
+    #if os(iOS)
     private var artwork: MPMediaItemArtwork?
+    #endif
     private var lastSaved: Double = 0
+    #if os(watchOS)
+    /// The watch needs its audio route picked (headphones or speaker) before anything can play.
+    private var sessionReady = false
+    /// Play through the watch's own speaker instead of Bluetooth headphones.
+    static var useWatchSpeaker: Bool {
+        get { UserDefaults.standard.bool(forKey: "watch.speaker") }
+        set { UserDefaults.standard.set(newValue, forKey: "watch.speaker") }
+    }
+    #endif
 
     var track: Track? {
         guard let album, album.items.indices.contains(index) else { return nil }
@@ -49,7 +60,11 @@ final class Player: ObservableObject {
     private init() {
         let saved = UserDefaults.standard.float(forKey: "player.rate")
         rate = Player.speeds.contains(saved) ? saved : 1
+        #if os(watchOS)
+        configureWatchSession()
+        #else
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
+        #endif
         timeObserver = av.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 2), queue: .main) { [weak self] time in
             Task { @MainActor in self?.tick(time.seconds) }
         }
@@ -66,7 +81,12 @@ final class Player: ObservableObject {
             let reason = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
             Task { @MainActor in
                 // Headphones unplugged: pause instead of blasting the speaker.
-                if reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue { self?.pause() }
+                if reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue {
+                    self?.pause()
+                    #if os(watchOS)
+                    self?.sessionReady = false
+                    #endif
+                }
             }
         })
         observers.append(center.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: nil, queue: .main) { [weak self] note in
@@ -100,7 +120,9 @@ final class Player: ObservableObject {
         position = 0
         album = detail
         self.source = source
+        #if os(iOS)
         artwork = nil
+        #endif
         loadArtwork(detail.cover)
         if let source { Library.shared.addRecent(source) }
         start(index: first)
@@ -115,7 +137,14 @@ final class Player: ObservableObject {
         position = 0
         guard !Demo.isOn else { isPlaying = true; position = duration * 0.37; return }
         guard let url = DownloadStore.shared.localFile(for: track) ?? API.resolve(track.playUrl) else { return }
+        #if os(watchOS)
+        guard sessionReady else {
+            activateWatchSession { [weak self] in self?.start(index: newIndex) }
+            return
+        }
+        #else
         try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
         let item = AVPlayerItem(url: url)
         itemObservation = item.observe(\.status) { [weak self] item, _ in
             guard item.status == .failed else { return }
@@ -132,6 +161,12 @@ final class Player: ObservableObject {
     }
 
     private func resume() {
+        #if os(watchOS)
+        guard sessionReady || Demo.isOn else {
+            activateWatchSession { [weak self] in self?.resume() }
+            return
+        }
+        #endif
         av.play()
         if !isLive { av.rate = rate }
         isPlaying = true
@@ -347,17 +382,59 @@ final class Player: ObservableObject {
             MPNowPlayingInfoPropertyIsLiveStream: isLive,
         ]
         if !isLive, duration > 0 { info[MPMediaItemPropertyPlaybackDuration] = duration }
+        #if os(iOS)
         if let artwork { info[MPMediaItemPropertyArtwork] = artwork }
+        #endif
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
+    #if os(watchOS)
+    /// Long-form audio goes to Bluetooth headphones; the system asks which ones if none are on.
+    /// With the speaker setting on, it plays from the watch itself.
+    func configureWatchSession() {
+        let session = AVAudioSession.sharedInstance()
+        if Self.useWatchSpeaker {
+            try? session.setCategory(.playback, mode: .spokenAudio)
+        } else {
+            try? session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+        }
+        sessionReady = false
+    }
+
+    private func activateWatchSession(then next: @escaping @MainActor () -> Void) {
+        let session = AVAudioSession.sharedInstance()
+        if Self.useWatchSpeaker {
+            try? session.setActive(true)
+            sessionReady = true
+            next()
+            return
+        }
+        isBuffering = true
+        session.activate(options: []) { [weak self] ok, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isBuffering = false
+                if ok {
+                    self.sessionReady = true
+                    next()
+                } else {
+                    self.isPlaying = false
+                    self.failure = "هدفون یا بلندگوی بلوتوثی انتخاب نشد."
+                }
+            }
+        }
+    }
+    #endif
+
     private func loadArtwork(_ link: String) {
+        #if os(iOS)
         guard !Demo.isOn, let url = API.resolve(link) else { return }
         Task { [weak self] in
             guard let image = await ImageStore.shared.image(for: url) else { return }
             self?.artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             self?.updateNowPlaying()
         }
+        #endif
     }
 }
 
