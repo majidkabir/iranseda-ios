@@ -239,13 +239,13 @@ final class Player: ObservableObject {
     }
 
     private func trackEnded() {
-        if let track { UserDefaults.standard.removeObject(forKey: resumeKey(track)) }
+        if let track { ResumeSync.remove(resumeKey(track)) }
         lastSaved = 0
         position = 0
         if hasNext {
             start(index: index + 1)
         } else {
-            if let source, !isLive, !Demo.isOn { UserDefaults.standard.set(1.0, forKey: Self.progressKey(source)) }
+            if let source, !isLive, !Demo.isOn { ResumeSync.set(1.0, forKey: Self.progressKey(source)) }
             isPlaying = false
             updateNowPlaying()
         }
@@ -293,11 +293,11 @@ final class Player: ObservableObject {
 
     private func saveResume() {
         guard let track, !isLive, position > 0, !Demo.isOn else { return }
-        UserDefaults.standard.set(position, forKey: resumeKey(track))
+        ResumeSync.set(position, forKey: resumeKey(track))
         lastSaved = position
         if let source, let album, duration > 0, !album.items.isEmpty {
             let done = (Double(index) + min(position / duration, 1)) / Double(album.items.count)
-            UserDefaults.standard.set(done, forKey: Self.progressKey(source))
+            ResumeSync.set(done, forKey: Self.progressKey(source))
         }
     }
 
@@ -317,9 +317,9 @@ final class Player: ObservableObject {
     }
 
     static func clearResumePositions() {
-        let defaults = UserDefaults.standard
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("resume.") {
-            defaults.removeObject(forKey: key)
+        // Through ResumeSync, so the other device forgets them too.
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("resume.") && key != "resume.sync" {
+            ResumeSync.remove(key)
         }
     }
 
