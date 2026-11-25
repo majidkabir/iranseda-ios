@@ -28,7 +28,7 @@ Screenshots use built-in sample data, so covers appear as coloured tiles.
 - **Player:** background audio, lock-screen controls, 15-second skip, playback speed, sleep timer, AirPlay, resume where you stopped
 - **Offline:** download files with progress, play them without a connection
 - **Search:** the whole catalogue of every hub (titles, authors, narrators), plus stations
-- **Library:** favourites (shared between iPhone and watch through your iCloud) and listening history
+- **Library:** favourites, listening history and where you stopped — shared between iPhone and watch through your iCloud
 - **Fast:** covers and logos are cached on disk; long lists load page by page
 - **Widget:** continue listening and favourite stations on the home screen
 - **Apple Watch:** a full app that works without the iPhone — radio, hubs, search, favourites, downloads — over the watch's Wi-Fi or cellular, to Bluetooth headphones or the watch speaker

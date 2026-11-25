@@ -31,9 +31,15 @@ final class Library: ObservableObject {
     @Published private(set) var recents: [SavedItem] = []
 
     private let file: URL
+    /// When each recent item was last played, for merging history from the other device.
+    private var recentTimes: [String: Double] = [:]
+    private var recentsClearedAt: Double = 0
+
     private struct Stored: Codable {
         var favorites: [SavedItem]
         var recents: [SavedItem]
+        var recentTimes: [String: Double]?
+        var recentsClearedAt: Double?
     }
 
     private init() {
@@ -46,6 +52,13 @@ final class Library: ObservableObject {
         } else if let data = try? Data(contentsOf: file), let stored = try? JSONDecoder().decode(Stored.self, from: data) {
             favorites = stored.favorites
             recents = stored.recents
+            recentTimes = stored.recentTimes ?? [:]
+            recentsClearedAt = stored.recentsClearedAt ?? 0
+        }
+        // History saved before syncing existed has no times: keep its order, older than anything new.
+        let base = Date().timeIntervalSince1970 - 30_000_000
+        for (index, item) in recents.enumerated() where recentTimes[item.id] == nil {
+            recentTimes[item.id] = base - Double(index)
         }
         startCloudSync()
     }
@@ -79,12 +92,18 @@ final class Library: ObservableObject {
         recents.removeAll { $0.id == item.id }
         recents.insert(item, at: 0)
         if recents.count > 30 { recents.removeLast(recents.count - 30) }
+        recentTimes[item.id] = Date().timeIntervalSince1970
+        recentTimes = recentTimes.filter { id, _ in recents.contains { $0.id == id } }
         save()
+        pushRecentsToCloud()
     }
 
     func clearRecents() {
         recents = []
+        recentTimes = [:]
+        recentsClearedAt = Date().timeIntervalSince1970
         save()
+        pushRecentsToCloud()
     }
 
     /// Any favourite or recent item by its id; used by widget deep links.
@@ -105,11 +124,59 @@ final class Library: ObservableObject {
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification, object: cloud, queue: .main
         ) { [weak self] note in
             let keys = note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
-            guard keys.contains(Self.cloudKey) else { return }
-            Task { @MainActor in self?.pullFavoritesFromCloud() }
+            Task { @MainActor in
+                if keys.contains(Self.cloudKey) { self?.pullFavoritesFromCloud() }
+                if keys.contains(Self.recentsKey) { self?.pullRecentsFromCloud() }
+            }
         }
         cloud.synchronize()
         pullFavoritesFromCloud()
+        pullRecentsFromCloud()
+        ResumeSync.start()
+    }
+
+    // History: both devices' items, newest first; clearing on one clears both.
+    private static let recentsKey = "recents.v1"
+    private struct CloudRecents: Codable {
+        var items: [SavedItem]
+        var times: [String: Double]
+        var clearedAt: Double
+    }
+
+    private func pullRecentsFromCloud() {
+        guard let data = NSUbiquitousKeyValueStore.default.data(forKey: Self.recentsKey),
+              let remote = try? JSONDecoder().decode(CloudRecents.self, from: data) else {
+            if !recents.isEmpty { pushRecentsToCloud() }
+            return
+        }
+        let cleared = max(recentsClearedAt, remote.clearedAt)
+        var times = recentTimes
+        var byID: [String: SavedItem] = Dictionary(recents.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for item in remote.items {
+            let t = remote.times[item.id] ?? 0
+            if t >= (times[item.id] ?? 0) { byID[item.id] = item; times[item.id] = t }
+        }
+        let merged = byID.values
+            .filter { (times[$0.id] ?? 0) > cleared }
+            .sorted { (times[$0.id] ?? 0) > (times[$1.id] ?? 0) }
+            .prefix(30)
+        let newRecents = Array(merged)
+        recentsClearedAt = cleared
+        recentTimes = times.filter { id, _ in newRecents.contains { $0.id == id } }
+        if newRecents != recents {
+            recents = newRecents
+            save()
+        }
+        if newRecents != remote.items || cleared != remote.clearedAt { pushRecentsToCloud() }
+    }
+
+    private func pushRecentsToCloud() {
+        guard !Demo.isOn,
+              let data = try? JSONEncoder().encode(CloudRecents(items: recents, times: recentTimes, clearedAt: recentsClearedAt))
+        else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        cloud.set(data, forKey: Self.recentsKey)
+        cloud.synchronize()
     }
 
     /// The first time on a device its own favourites are added to the shared list;
@@ -141,7 +208,7 @@ final class Library: ObservableObject {
 
     private func save() {
         guard !Demo.isOn else { return }
-        if let data = try? JSONEncoder().encode(Stored(favorites: favorites, recents: recents)) {
+        if let data = try? JSONEncoder().encode(Stored(favorites: favorites, recents: recents, recentTimes: recentTimes, recentsClearedAt: recentsClearedAt)) {
             try? data.write(to: file, options: .atomic)
         }
         updateWidget()
