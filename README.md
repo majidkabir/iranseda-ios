@@ -31,13 +31,14 @@ Screenshots use built-in sample data, so covers appear as coloured tiles.
 - **Library:** favourites and listening history, kept only on the device
 - **Fast:** covers and logos are cached on disk; long lists load page by page
 - **Widget:** continue listening and favourite stations on the home screen
+- **Apple Watch:** a full app that works without the iPhone — radio, hubs, search, favourites, downloads — over the watch's Wi-Fi or cellular, to Bluetooth headphones or the watch speaker
 - **Persian, right-to-left UI** with dark mode and large text sizes
 
-Not there yet: comments and likes. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
+Not there yet: comments and likes; favourites are not synced between iPhone and watch. CarPlay is written but needs an entitlement from Apple ([docs/CARPLAY.md](docs/CARPLAY.md)). See [open issues](https://github.com/majidkabir/iranseda-ios/issues).
 
 ## Build and run
 
-Requirements: Xcode 26 or later, iOS 17 or later, [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+Requirements: Xcode 26 or later, iOS 17 / watchOS 10 or later, [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
 git clone https://github.com/majidkabir/iranseda-ios.git
@@ -47,7 +48,7 @@ xcodegen            # creates IranSeda.xcodeproj from project.yml
 open IranSeda.xcodeproj
 ```
 
-In Xcode, select the IranSeda target, set your own Team under Signing & Capabilities, and change the identifiers in `project.yml` (`com.majidkabir.iranseda`, its `.widget` and `group.` forms, also in `Shared/WidgetSnapshot.swift`) to your own. Then run on a simulator or device.
+In Xcode, select the IranSeda target, set your own Team under Signing & Capabilities, and change the identifiers in `project.yml` (`com.majidkabir.iranseda`, its `.widget`, `.watchkitapp` and `group.` forms, also in `Shared/WidgetSnapshot.swift`) to your own. Then run on a simulator or device.
 
 To try the app without the network, add the launch arguments `-demo YES`.
 
@@ -60,6 +61,7 @@ To install on your own iPhone through TestFlight from GitHub Actions, see [docs/
 | `IranSeda/Core` | API client, models, player, downloads, favourites, demo data |
 | `IranSeda/UI` | Shared components: artwork, loader, buttons |
 | `IranSeda/Views` | Screens: home, radio, search, detail, player, library, settings |
+| `IranSedaWatch` | Apple Watch app: its own screens on the same core code |
 | `IranSedaWidget`, `Shared` | Home-screen widget and the data it shares with the app |
 | `.github/workflows` | CI build, simulator screenshots, TestFlight upload |
 | `docs` | API notes, TestFlight and CarPlay guides, screenshots |
