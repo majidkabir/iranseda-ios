@@ -48,7 +48,10 @@ struct WatchRoot: View {
             demoRoot ?? AnyView(WatchHome())
         }
         .sheet(isPresented: $nav.showPlayer) {
+            // A sheet starts a new environment on the watch: set the direction again.
             PlayerScreen()
+                .environment(\.layoutDirection, .rightToLeft)
+                .environment(\.locale, Locale(identifier: "fa"))
         }
         .alert("پخش نشد", isPresented: Binding(
             get: { player.failure != nil },
@@ -109,7 +112,7 @@ struct WatchHome: View {
                     MenuLabel(title: "رادیو", symbol: "dot.radiowaves.left.and.right", color: .red)
                 }
                 NavigationLink { HubsScreen() } label: {
-                    MenuLabel(title: "کتاب، پادکست، موسیقی", symbol: "books.vertical.fill", color: .purple)
+                    MenuLabel(title: "کتاب و پادکست", symbol: "books.vertical.fill", color: .purple)
                 }
                 NavigationLink { SearchScreen() } label: {
                     MenuLabel(title: "جست‌وجو", symbol: "magnifyingglass", color: .blue)

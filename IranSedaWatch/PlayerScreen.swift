@@ -90,6 +90,7 @@ private struct PlayerControls: View {
             }
         }
         .padding(.horizontal, 4)
+        .padding(.top, 14)
     }
 
     private var playButton: some View {

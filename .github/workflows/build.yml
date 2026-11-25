@@ -24,7 +24,6 @@ jobs:
           xcodebuild build \
             -project IranSeda.xcodeproj \
             -scheme IranSeda \
-            -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log | grep -E "error:|\*\* BUILD" || true
@@ -35,7 +34,6 @@ jobs:
           xcodebuild build \
             -project IranSeda.xcodeproj \
             -scheme IranSedaWatch \
-            -sdk watchsimulator \
             -destination 'generic/platform=watchOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             | tee watch.log | grep -E "error:|\*\* BUILD" || true

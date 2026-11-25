@@ -372,13 +372,46 @@ struct HubsScreen: View {
         Loader(load: { try await API.get(InitConfig.self, API.initPath) }) { config in
             List {
                 ForEach(config.Base.filter { $0.UrlType == "base" && !$0.tabs.isEmpty }) { hub in
-                    NavigationLink { HubScreen(hub: hub) } label: {
-                        ItemRow(image: hub.LogoImage, title: hub.title, symbol: "square.stack.fill")
-                    }
+                    NavigationLink { HubScreen(hub: hub) } label: { HubRow(hub: hub) }
                 }
             }
         }
         .navigationTitle("پایگاه‌ها")
+    }
+}
+
+private struct HubRow: View {
+    let hub: Hub
+
+    private var symbol: String? {
+        switch hub.Id {
+        case "1021": return "book.fill"
+        case "1027": return "mic.fill"
+        case "1023": return "music.note"
+        case "1026": return "teddybear.fill"
+        case "1022": return "book.closed.fill"
+        case "1024": return "person.wave.2.fill"
+        case "1025": return "moon.stars.fill"
+        case "1029": return "clock.arrow.circlepath"
+        default: return nil
+        }
+    }
+
+    var body: some View {
+        if let symbol {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.gradient(for: hub.title), in: RoundedRectangle(cornerRadius: 8))
+                Text(hub.title).font(.footnote.weight(.medium)).lineLimit(2)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 2)
+        } else {
+            ItemRow(image: hub.LogoImage, title: hub.title, symbol: "square.stack.fill")
+        }
     }
 }
 
@@ -776,6 +809,10 @@ struct SearchScreen: View {
         let stations = model.matchingChannels(trimmed)
         let found = model.hubs.filter { !$0.boxes.isEmpty }
         List {
+            TextField("کتاب، راوی، شبکه…", text: $query)
+                .multilineTextAlignment(.trailing)
+                .environment(\.layoutDirection, .leftToRight)
+                .submitLabel(.search)
             if trimmed.count < 2 {
                 Text("نام کتاب، راوی، برنامه یا شبکه را بگویید یا بنویسید.")
                     .font(.footnote)
@@ -822,7 +859,6 @@ struct SearchScreen: View {
                 ContentUnavailableView.search(text: trimmed)
             }
         }
-        .searchable(text: $query, prompt: "جست‌وجو")
         .navigationTitle("جست‌وجو")
         .task { await model.prepare() }
         .task(id: query) {
